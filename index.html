@@ -42,6 +42,7 @@
     .shopItem canvas { border-radius: 6px; flex-shrink: 0; cursor: inherit; }
     #iconFrog { background: #6fae4f; }
     #iconTadpole { background: #3b8fd6; }
+    #iconDart { background: #6fae4f; }
     .shopItem small { color: #cfe0c8; }
     .bug { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
 
@@ -92,6 +93,42 @@
     .ab-bar span { display: block; height: 100%; }
     #useAllBtn { background: #e8a317; font-weight: bold; font-size: 13px; padding: 8px; }
     .ab-tip { font-size: 11px; color: #9fb79a; }
+    #iconBull { background: #6fae4f; }
+
+    /* Start menu over the map */
+    #gameArea { position: relative; max-width: 100%; }
+    #game { display: block; }
+    #menu {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+      background: rgba(20, 35, 22, 0.94);
+      border-radius: 8px;
+      padding: 12px;
+      overflow-y: auto;
+    }
+    #menu h2 { margin: 0; font-size: 28px; }
+    #menu p { margin: 0 0 8px; color: #cfe0c8; }
+    #mapList { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+    .map-card {
+      width: 260px; display: flex; flex-direction: column; gap: 6px; text-align: left;
+      background: #2a3d2c; border: 2px solid #4b6b4e; padding: 10px;
+    }
+    .map-card:hover { border-color: #ffe066; background: #34503a; }
+    .map-card canvas { width: 100%; height: auto; border-radius: 6px; }
+    .map-name { font-weight: bold; font-size: 17px; display: flex; justify-content: space-between; align-items: center; }
+    .map-diff { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+    .map-diff.normal { background: #4caf50; }
+    .map-diff.hard { background: #c0392b; }
+    .map-desc { font-size: 12px; color: #cfe0c8; line-height: 1.4; }
+    #diffList { display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; justify-content: center; }
+    .diff-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 120px;
+      background: #2a3d2c; border: 2px solid #4b6b4e; padding: 8px 14px;
+    }
+    .diff-btn small { font-size: 11px; color: #cfe0c8; }
+    .diff-btn.easy.selected { background: #2e7d32; border-color: #ffe066; }
+    .diff-btn.medium.selected { background: #b8860b; border-color: #ffe066; }
+    .diff-btn.hard.selected { background: #a33028; border-color: #ffe066; }
   </style>
 </head>
 <body>
@@ -102,17 +139,28 @@
       <div id="abilityList"></div>
       <div class="ab-tip">Hover a button to see which tower it is.</div>
     </div>
-    <canvas id="game" width="800" height="480"></canvas>
+    <div id="gameArea">
+      <canvas id="game" width="800" height="480"></canvas>
+      <!-- Start menu: pick a map -->
+      <div id="menu">
+        <h2>🐸 Frog Pond Defense</h2>
+        <p>1. Choose a difficulty</p>
+        <div id="diffList"></div>
+        <p>2. Choose a map to start</p>
+        <div id="mapList"></div>
+      </div>
+    </div>
     <div id="panel">
       <h1>🐸 Frog Pond Defense</h1>
       <div class="stat"><span>Round</span><span id="round">0 / 50</span></div>
-      <div class="stat"><span>Lives</span><span id="lives">20</span></div>
+      <div class="stat"><span>Lives</span><span id="lives">50</span></div>
       <div class="stat"><span>Flies (money)</span><span id="money">120</span></div>
       <button id="startBtn">Start Round 1</button>
       <div style="display:flex;gap:8px">
         <button id="speedBtn" style="flex:1">Speed: 1x</button>
         <button id="restartBtn" style="flex:1;background:#8a3b3b">↻ Restart</button>
       </div>
+      <button id="menuBtn" style="background:#3a523c">☰ Menu (change map)</button>
       <div id="msg"></div>
       <div id="towerPanel"></div>
       <b>Shop</b>
@@ -124,18 +172,27 @@
         <canvas id="iconTadpole" width="40" height="40"></canvas>
         <span><b>Tadpole</b> – 80<br><small>Shoots water. Long range, fast. Pond only!</small></span>
       </button>
+      <button class="shopItem" id="shopDart">
+        <canvas id="iconDart" width="40" height="40"></canvas>
+        <span><b>Poison Dart Frog</b> – 120<br><small>Sniper. Slow, big damage, huge range. Poisons bugs. Aims at the toughest bug.</small></span>
+      </button>
+      <button class="shopItem" id="shopBull">
+        <canvas id="iconBull" width="40" height="40"></canvas>
+        <span><b>Bullfrog</b> – 70<br><small>Huge slap, slow, tiny range. Put it right next to the path!</small></span>
+      </button>
       <div id="info">
         <b>How to play</b><br>
-        Pick from the shop (or press 1 / 2), then click the map to place it.<br>
-        Click a frog or tadpole to open its upgrade menu.<br>
+        Pick from the shop (or press 1 / 2 / 3 / 4), then click the map to place it.<br>
+        Click any of your towers to open its upgrade menu.<br>
         3 paths: ⚡ Speed, 💥 Damage, 🎯 Range. Only one path can go past tier 2. Tier 4 unlocks a super attack – fire it from the Abilities bar on the left, or press Q to fire them all.<br>
-        Survive all 50 rounds!<br>
-        Stop the bugs reaching the pond!<br><br>
+        Survive every round: Easy = 25, Medium = 40, Hard = 50.<br>
+        Stop the bugs reaching the pond (or the frogs' home)!<br><br>
         <b>Bugs</b><br>
         <span class="bug" style="background:#333"></span>Tier 1 – Gnat (weak)<br>
         <span class="bug" style="background:#8b4513"></span>Tier 2 – Beetle (tanky)<br>
         <span class="bug" style="background:#f2c200"></span>Tier 3 – Hornet (fast + tough)<br>
-        <span class="bug" style="background:#4a2c17;width:14px;height:14px"></span><b>BOSS – Stag Beetle</b> (super tanky, slow) – round 5, 8, then every 5 rounds
+        <span class="bug" style="background:#4a2c17;width:14px;height:14px"></span><b>BOSS – Stag Beetle</b> (super tanky, slow) – round 5, 8, then every 5 rounds<br>
+        <span class="bug" style="background:#ffcc00;width:14px;height:14px;border:2px solid #1a1a1a;box-sizing:border-box"></span><b>BOSS – Yellow Jacket</b> (fast, tanky, flies across corners) – round 15
       </div>
     </div>
   </div>

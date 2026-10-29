@@ -7,59 +7,91 @@ const TILE = 40;
 const COLS = canvas.width / TILE;  // 20
 const ROWS = canvas.height / TILE; // 12
 
-// The pond sits in the middle of the map. Bugs want to reach it.
-const POND = { x: 400, y: 240, rx: 150, ry: 90 };
+// ---------- Maps ----------
+// path: the corners bugs walk through (grid coordinates). The last one is where they're headed.
+// goal: "pond" = bugs jump into the pond, "home" = bugs attack the frogs' home base.
+// flyStraight: flying bosses ignore the path and fly in a straight line to the goal.
+const MAPS = [
+  {
+    name: "Lily Pond", difficulty: "Normal",
+    desc: "The path loops all the way around the pond before the bugs reach the water.",
+    pond: { x: 400, y: 240, rx: 150, ry: 90 },
+    path: [[0, 2], [16, 2], [16, 10], [3, 10], [3, 6], [6, 6]],
+    goal: "pond", reedGap: Math.PI, seed: 7,
+    lilyPads: [
+      { x: 360, y: 210, r: 16 }, { x: 450, y: 270, r: 20 }, { x: 480, y: 200, r: 13 },
+      { x: 320, y: 280, r: 12 }, { x: 410, y: 300, r: 10 },
+    ],
+  },
+  {
+    name: "Frog Home", difficulty: "Hard",
+    desc: "Bugs march around a big pond to reach the frogs' home. Yellow Jackets fly straight across the water!",
+    pond: { x: 360, y: 250, rx: 200, ry: 135 },
+    path: [[0, 10], [1, 10], [1, 1], [18, 1], [18, 6], [16, 6]],
+    goal: "home", flyStraight: true, reedGap: null, seed: 21,
+    lilyPads: [
+      { x: 290, y: 200, r: 18 }, { x: 420, y: 300, r: 22 }, { x: 470, y: 190, r: 14 },
+      { x: 250, y: 310, r: 13 }, { x: 360, y: 250, r: 11 }, { x: 510, y: 270, r: 12 },
+    ],
+  },
+];
+
+// The current map's layout (filled in by loadMap)
+let currentMap, POND, PATH_TILES, waypoints, pathSet, decorations, reeds, lilyPads;
+
 function inPond(x, y) {
   const dx = (x - POND.x) / POND.rx, dy = (y - POND.y) / POND.ry;
   return dx * dx + dy * dy <= 1;
 }
 
-// The path loops all the way around the pond, then heads into the water.
-const PATH_TILES = [
-  [0, 2], [16, 2], [16, 10], [3, 10], [3, 6], [6, 6],
-];
-const waypoints = PATH_TILES.map(([c, r]) => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 }));
+function loadMap(map) {
+  currentMap = map;
+  POND = map.pond;
+  PATH_TILES = map.path;
+  waypoints = PATH_TILES.map(([c, r]) => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 }));
 
-// Mark every tile on the path so towers can't be placed there.
-const pathSet = new Set();
-for (let i = 0; i < PATH_TILES.length - 1; i++) {
-  let [c1, r1] = PATH_TILES[i];
-  const [c2, r2] = PATH_TILES[i + 1];
-  pathSet.add(c1 + "," + r1);
-  while (c1 !== c2 || r1 !== r2) {
-    c1 += Math.sign(c2 - c1);
-    r1 += Math.sign(r2 - r1);
+  // Mark every tile on the path so towers can't be placed there.
+  pathSet = new Set();
+  for (let i = 0; i < PATH_TILES.length - 1; i++) {
+    let [c1, r1] = PATH_TILES[i];
+    const [c2, r2] = PATH_TILES[i + 1];
     pathSet.add(c1 + "," + r1);
+    while (c1 !== c2 || r1 !== r2) {
+      c1 += Math.sign(c2 - c1);
+      r1 += Math.sign(r2 - r1);
+      pathSet.add(c1 + "," + r1);
+    }
   }
-}
 
-// Random grass, flowers, rocks and reeds (same every time thanks to a fixed seed).
-let seed = 7;
-const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-const decorations = [];
-for (let i = 0; i < 160; i++) {
-  const x = rand() * canvas.width, y = rand() * canvas.height;
-  const c = Math.floor(x / TILE), r = Math.floor(y / TILE);
-  if (pathSet.has(c + "," + r) || inPond(x, y)) continue;
-  const roll = rand();
-  decorations.push({ x, y, kind: roll < 0.7 ? "grass" : roll < 0.88 ? "flower" : "rock", hue: rand() });
+  // Random grass, flowers, rocks and reeds (same every time thanks to a fixed seed).
+  let seed = map.seed;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  decorations = [];
+  for (let i = 0; i < 160; i++) {
+    const x = rand() * canvas.width, y = rand() * canvas.height;
+    const c = Math.floor(x / TILE), r = Math.floor(y / TILE);
+    if (pathSet.has(c + "," + r) || inPond(x, y)) continue;
+    if (map.goal === "home" && Math.hypot(x - waypoints.at(-1).x, y - waypoints.at(-1).y) < 45) continue;
+    const roll = rand();
+    decorations.push({ x, y, kind: roll < 0.7 ? "grass" : roll < 0.88 ? "flower" : "rock", hue: rand() });
+  }
+  reeds = [];
+  for (let a = 0; a < Math.PI * 2; a += 0.35) {
+    if (map.reedGap !== null && Math.abs(a - map.reedGap) < 0.4) continue; // gap where the path enters the pond
+    reeds.push({ x: POND.x + Math.cos(a) * (POND.rx + 4), y: POND.y + Math.sin(a) * (POND.ry + 4), lean: rand() - 0.5 });
+  }
+  lilyPads = map.lilyPads;
 }
-const reeds = [];
-for (let a = 0; a < Math.PI * 2; a += 0.35) {
-  if (Math.abs(a - Math.PI) < 0.4) continue; // leave a gap where the path enters the pond
-  reeds.push({ x: POND.x + Math.cos(a) * (POND.rx + 4), y: POND.y + Math.sin(a) * (POND.ry + 4), lean: rand() - 0.5 });
-}
-const lilyPads = [
-  { x: 360, y: 210, r: 16 }, { x: 450, y: 270, r: 20 }, { x: 480, y: 200, r: 13 },
-  { x: 320, y: 280, r: 12 }, { x: 410, y: 300, r: 10 },
-];
+loadMap(MAPS[0]);
 
-// ---------- Bugs (3 tiers + a boss) ----------
+// ---------- Bugs (3 tiers + 2 bosses) ----------
 const BUG_TYPES = {
   1: { name: "Gnat",        hp: 30,   speed: 1.4,  reward: 5,   lifeCost: 1,  color: "#333333", size: 8 },
   2: { name: "Beetle",      hp: 110,  speed: 0.8,  reward: 12,  lifeCost: 2,  color: "#8b4513", size: 12 },
   3: { name: "Hornet",      hp: 220,  speed: 1.6,  reward: 25,  lifeCost: 4,  color: "#f2c200", size: 13 },
   4: { name: "Stag Beetle", hp: 1500, speed: 0.4,  reward: 150, lifeCost: 10, color: "#4a2c17", size: 20, boss: true },
+  // Tier 2 boss: fast and tanky, and it flies across the corners (cornerCut = how early it turns, in pixels)
+  5: { name: "Yellow Jacket", hp: 2500, speed: 1.8, reward: 250, lifeCost: 12, color: "#ffcc00", size: 16, boss: true, cornerCut: 130, flies: true },
 };
 
 // What spawns each round: [tier, count] groups. Tier 4 = Stag Beetle boss.
@@ -86,6 +118,17 @@ for (let r = 11; r <= 50; r++) {
   ];
   if (r % 5 === 0) groups.push([4, Math.floor(r / 10) + (r === 50 ? 3 : 0)]); // round 50 is the final boss wave
   ROUNDS.push(groups);
+}
+
+// Round 15: the Yellow Jacket boss arrives with a swarm of hornets
+ROUNDS[14] = [[3, 20], [5, 1]];
+
+// Boss names for messages, e.g. "A Yellow Jacket" or "2 Stag Beetles"
+function bossList(groups) {
+  return groups
+    .filter(([t]) => BUG_TYPES[t].boss)
+    .map(([t, n]) => (n > 1 ? `${n} ${BUG_TYPES[t].name}s` : `a ${BUG_TYPES[t].name}`))
+    .join(" and ");
 }
 
 // Flies you get for squashing a bug. Later rounds have lots of bugs, so each one pays a bit less.
@@ -115,7 +158,27 @@ const TOWERS = {
     colors: ["#55552e", "#3a3a1e", "#22220e"],
     upgradeCosts: [35, 70, 120, 300],
   },
+  // Sniper: shoots slow poison darts that hit really hard from very far away.
+  // It aims at the toughest bug in range, so it's great against bosses.
+  // Each hit also poisons the bug (see POISON below).
+  dartfrog: {
+    name: "Poison Dart Frog", cost: 120, damage: 55, range: 260, cooldown: 110,
+    colors: ["#1e88e5", "#1565c0", "#0d47a1"],
+    upgradeCosts: [50, 100, 175, 400],
+  },
 };
+// Bullfrog: a big bruiser. Huge slap, same slow speed as the dart frog, but tiny range,
+// so it has to sit right next to the path (corners are best).
+TOWERS.bullfrog = {
+  name: "Bullfrog", cost: 70, damage: 75, range: 40, cooldown: 110,
+  colors: ["#7a8b3a", "#5f6e2b", "#46511f"],
+  upgradeCosts: [40, 80, 150, 300],
+};
+const SHOP_BUTTONS = { frog: "shopFrog", tadpole: "shopTadpole", dartfrog: "shopDart", bullfrog: "shopBull" };
+
+// Poison from dart hits: extra damage spread over a few seconds.
+// Total poison damage = 40% of the dart's hit. Getting hit again restarts the timer.
+const POISON = { share: 0.4, frames: 180 }; // 180 frames = 3 seconds
 
 // The 3 upgrade paths. "mult" is the multiplier at tier 0, 1, 2, 3, 4.
 const PATHS = [
@@ -168,9 +231,19 @@ function canPlace(type, c, r) {
   return type === "tadpole" ? wet : !wet;
 }
 
+// ---------- Difficulties ----------
+// Picked in the start menu: how many lives you start with and how many rounds you must survive.
+const DIFFICULTIES = {
+  easy:   { name: "Easy",   lives: 50, rounds: 25 },
+  medium: { name: "Medium", lives: 60, rounds: 40 },
+  hard:   { name: "Hard",   lives: 30, rounds: 50 },
+};
+let difficulty = "easy";
+function totalRounds() { return DIFFICULTIES[difficulty].rounds; }
+
 // ---------- Game state ----------
 let money = 120;
-let lives = 20;
+let lives = DIFFICULTIES[difficulty].lives;
 let round = 0;
 let roundActive = false;
 let gameOver = false;
@@ -190,11 +263,11 @@ const startBtn = $("startBtn");
 const speedBtn = $("speedBtn");
 
 function updateUI() {
-  $("round").textContent = `${round} / ${ROUNDS.length}`;
+  $("round").textContent = `${round} / ${totalRounds()} (${DIFFICULTIES[difficulty].name})`;
   $("lives").textContent = lives;
   $("money").textContent = money;
   startBtn.disabled = roundActive || gameOver;
-  startBtn.textContent = round >= ROUNDS.length ? "All rounds done" : `Start Round ${round + 1}`;
+  startBtn.textContent = round >= totalRounds() ? "All rounds done" : `Start Round ${round + 1}`;
   refreshPanel();
   refreshAbilityBar();
 }
@@ -202,7 +275,7 @@ function updateUI() {
 function showMsg(text) { $("msg").textContent = text; }
 
 startBtn.onclick = () => {
-  if (roundActive || gameOver || round >= ROUNDS.length) return;
+  if (inMenu || roundActive || gameOver || round >= totalRounds()) return;
   round++;
   roundActive = true;
   spawnQueue = [];
@@ -221,16 +294,24 @@ startBtn.onclick = () => {
   }
   spawnTimer = 0;
   const bossRound = ROUNDS[round - 1].some(([tier]) => BUG_TYPES[tier].boss);
-  const bosses = groups.filter(([t]) => BUG_TYPES[t].boss).reduce((n, [, c]) => n + c, 0);
-  showMsg(bossRound ? `⚠️ Boss round! ${bosses > 1 ? bosses + " Stag Beetles are" : "A Stag Beetle is"} coming!` : "");
+  showMsg(bossRound ? `⚠️ Boss round! Watch out for ${bossList(groups)}!` : "");
   updateUI();
 };
 
-// Restart: start a fresh game from round 0 (asks first if a game is going)
+// Asks before throwing away a game that's in progress
+function okToLeave(question) {
+  return !(round > 0 && !gameOver && typeof confirm === "function" && !confirm(question));
+}
+
+// Restart: start a fresh game on the same map
 function restartGame() {
-  if (round > 0 && !gameOver && typeof confirm === "function" && !confirm("Restart the game from round 1?")) return;
+  if (!okToLeave("Restart the game from round 1?")) return;
+  resetGame();
+}
+
+function resetGame() {
   money = 120;
-  lives = 20;
+  lives = DIFFICULTIES[difficulty].lives;
   round = 0;
   roundActive = false;
   gameOver = false;
@@ -242,10 +323,61 @@ function restartGame() {
   effects = [];
   hoverAbility = null;
   closePanel();
-  showMsg("New game! Place some frogs.");
+  showMsg(`New game on ${currentMap.name}! Place some frogs.`);
   updateUI();
 }
 $("restartBtn").onclick = restartGame;
+
+// ---------- Start menu (pick a map) ----------
+let inMenu = true; // the game waits while the menu is open
+const menuEl = $("menu");
+
+function showMenu() {
+  inMenu = true;
+  closePanel();
+  menuEl.style.display = "flex";
+}
+function startMap(i) {
+  loadMap(MAPS[i]);
+  resetGame();
+  inMenu = false;
+  menuEl.style.display = "none";
+}
+$("menuBtn").onclick = () => { if (okToLeave("Leave this game and go back to the menu?")) showMenu(); };
+
+// Difficulty buttons in the menu
+function pickDifficulty(key) {
+  difficulty = key;
+  for (const k of Object.keys(DIFFICULTIES)) {
+    $("diff-" + k).className = "diff-btn " + k + (k === key ? " selected" : "");
+  }
+}
+
+// One card per map, each with a little picture of the map
+function buildMenu() {
+  const diffs = $("diffList");
+  for (const [key, d] of Object.entries(DIFFICULTIES)) {
+    const btn = document.createElement("button");
+    btn.id = "diff-" + key;
+    btn.innerHTML = `<b>${d.name}</b><small>${d.lives} lives · ${d.rounds} rounds</small>`;
+    btn.onclick = () => pickDifficulty(key);
+    diffs.appendChild(btn);
+  }
+  pickDifficulty("easy");
+
+  const list = $("mapList");
+  MAPS.forEach((m, i) => {
+    const card = document.createElement("button");
+    card.className = "map-card";
+    card.innerHTML = `<canvas width="240" height="144"></canvas>
+      <span class="map-name">${m.name} <span class="map-diff ${m.difficulty.toLowerCase()}">${m.difficulty} map</span></span>
+      <span class="map-desc">${m.desc}</span>`;
+    card.onclick = () => startMap(i);
+    list.appendChild(card);
+    drawMapThumb(m, card.querySelector("canvas"));
+  });
+  loadMap(MAPS[0]);
+}
 
 speedBtn.onclick = () => {
   speed = speed === 3 ? 1 : speed + 1;
@@ -256,15 +388,18 @@ speedBtn.onclick = () => {
 function selectTower(type) {
   selected = type;
   closePanel();
-  $("shopFrog").className = "shopItem" + (type === "frog" ? " selected" : "");
-  $("shopTadpole").className = "shopItem" + (type === "tadpole" ? " selected" : "");
-  showMsg(type === "tadpole" ? "Click the pond to place a tadpole" : "Click the grass to place a frog");
+  for (const [t, id] of Object.entries(SHOP_BUTTONS)) {
+    $(id).className = "shopItem" + (t === type ? " selected" : "");
+  }
+  const name = TOWERS[type].name.toLowerCase();
+  showMsg(type === "tadpole" ? "Click the pond to place a tadpole" : `Click the grass to place a ${name}`);
 }
-$("shopFrog").onclick = () => selectTower("frog");
-$("shopTadpole").onclick = () => selectTower("tadpole");
+for (const [t, id] of Object.entries(SHOP_BUTTONS)) $(id).onclick = () => selectTower(t);
 document.addEventListener("keydown", (e) => {
   if (e.key === "1") selectTower("frog");
   if (e.key === "2") selectTower("tadpole");
+  if (e.key === "3") selectTower("dartfrog");
+  if (e.key === "4") selectTower("bullfrog");
   if (e.key === "Escape") closePanel();
   if (e.key === "q" || e.key === "Q") useAllAbilities();
 });
@@ -405,7 +540,8 @@ function sellTower(f) {
 
 // ---------- Super attacks (tier 4 abilities) ----------
 function bugsInRange(f, range) {
-  return bugs.filter((b) => b.hp > 0 && !b.escaped && Math.hypot(b.x - f.x, b.y - f.y) <= range);
+  // A bug counts as in range when any part of its body is inside the range circle
+  return bugs.filter((b) => b.hp > 0 && !b.escaped && Math.hypot(b.x - f.x, b.y - f.y) - BUG_TYPES[b.tier].size <= range);
 }
 
 function useAbility(f) {
@@ -449,7 +585,7 @@ canvas.addEventListener("mousemove", (e) => { hoverTile = tileFromEvent(e); });
 canvas.addEventListener("mouseleave", () => { hoverTile = null; });
 
 canvas.addEventListener("click", (e) => {
-  if (gameOver) return;
+  if (gameOver || inMenu) return;
   const { c, r } = tileFromEvent(e);
   const existing = frogs.find((f) => f.c === c && f.r === r);
 
@@ -460,7 +596,7 @@ canvas.addEventListener("click", (e) => {
 
   const tower = TOWERS[selected];
   if (!canPlace(selected, c, r)) {
-    return showMsg(selected === "tadpole" ? "Tadpoles can only go in the pond!" : "Frogs go on the grass!");
+    return showMsg(selected === "tadpole" ? "Tadpoles can only go in the pond!" : `${tower.name}s go on the grass!`);
   }
   if (money < tower.cost) return showMsg(`A ${tower.name.toLowerCase()} costs ${tower.cost}`);
   money -= tower.cost;
@@ -476,12 +612,14 @@ canvas.addEventListener("click", (e) => {
 function spawnBug(tier) {
   const t = BUG_TYPES[tier];
   const scale = hpScale(round); // bugs get tougher each round
+  // Flyers on some maps skip the path and fly straight at the goal
+  const route = t.flies && currentMap.flyStraight ? [waypoints.at(-1)] : waypoints;
   bugs.push({
-    tier, x: waypoints[0].x - TILE, y: waypoints[0].y,
+    tier, x: waypoints[0].x - TILE, y: waypoints[0].y, route,
     wp: 0, hp: t.hp * scale, maxHp: t.hp * scale,
     speed: t.speed, wobble: Math.random() * 10, angle: 0,
   });
-  if (t.boss) showMsg("⚠️ The Stag Beetle has arrived!");
+  if (t.boss) showMsg(`⚠️ The ${t.name} has arrived!`);
 }
 
 function step() {
@@ -494,16 +632,21 @@ function step() {
     }
   }
 
-  // Move bugs along the path
+  // Move bugs along their route (the path, or a straight line for some flyers)
   for (const b of bugs) {
-    const target = waypoints[b.wp];
+    const route = b.route || waypoints;
+    const target = route[b.wp];
     const dx = target.x - b.x, dy = target.y - b.y;
     const dist = Math.hypot(dx, dy);
     if (dist > 0) b.angle = Math.atan2(dy, dx);
-    if (dist < b.speed) {
+    // Flying bosses cut corners: they turn toward the next corner early
+    const cut = BUG_TYPES[b.tier].cornerCut || 0;
+    if (cut && dist < cut && b.wp < route.length - 1) {
+      b.wp++;
+    } else if (dist < b.speed) {
       b.x = target.x; b.y = target.y;
       b.wp++;
-      if (b.wp >= waypoints.length) {
+      if (b.wp >= route.length) {
         b.escaped = true;
         lives -= BUG_TYPES[b.tier].lifeCost;
       }
@@ -522,35 +665,60 @@ function step() {
     if (f.cooldown > 0) { f.cooldown--; continue; }
 
     const stats = towerStats(f);
-    // Target the bug furthest along the path that is in range
+    // Most towers target the bug furthest along the path.
+    // The Poison Dart Frog snipes the toughest bug in range instead.
     let best = null;
     for (const b of bugsInRange(f, stats.range)) {
-      if (!best || b.wp > best.wp) best = b;
+      if (f.type === "dartfrog" ? !best || b.hp > best.hp : !best || b.wp > best.wp) best = b;
     }
     if (best) {
       f.angle = Math.atan2(best.y - f.y, best.x - f.x);
       f.cooldown = stats.cooldown;
+      const startX = f.x + Math.cos(f.angle) * 10, startY = f.y + Math.sin(f.angle) * 10;
       if (f.type === "tadpole") {
-        shots.push({ x: f.x + Math.cos(f.angle) * 10, y: f.y + Math.sin(f.angle) * 10, target: best, damage: stats.damage });
+        shots.push({ kind: "water", x: startX, y: startY, target: best, damage: stats.damage, speed: 10 });
+      } else if (f.type === "dartfrog") {
+        shots.push({ kind: "dart", x: startX, y: startY, target: best, damage: stats.damage, speed: 18, angle: f.angle });
       } else {
         best.hp -= stats.damage;
         f.tongue = { x: best.x, y: best.y, life: 8 };
+        if (f.type === "bullfrog") {
+          // Big slap: a thump ring where it lands
+          effects.push({ kind: "ring", x: best.x, y: best.y, from: 6, to: 26, color: "#e8d36a", life: 14, max: 14 });
+        }
       }
     }
   }
 
-  // Move water shots toward their bug
+  // Poisoned bugs keep taking damage
+  for (const b of bugs) {
+    if (b.poisonTime > 0) {
+      b.hp -= b.poisonDmg;
+      b.poisonTime--;
+      if (b.poisonTime === 0) b.poisonDmg = 0;
+    }
+  }
+
+  // Move water drops and darts toward their bug
   for (const s of shots) {
     const b = s.target;
     if (b.hp <= 0 || b.escaped) { s.done = true; continue; }
     const dx = b.x - s.x, dy = b.y - s.y, d = Math.hypot(dx, dy);
-    if (d < 10) {
+    if (d < s.speed) {
       b.hp -= s.damage;
       s.done = true;
-      effects.push({ kind: "ring", x: b.x, y: b.y, from: 4, to: 14, color: "#aee3ff", life: 10, max: 10 });
+      if (s.kind === "dart") {
+        // Poison: keep the stronger poison if the bug is already poisoned
+        const perFrame = (s.damage * POISON.share) / POISON.frames;
+        b.poisonDmg = Math.max(b.poisonDmg || 0, perFrame);
+        b.poisonTime = POISON.frames;
+      }
+      const color = s.kind === "dart" ? "#7cff6b" : "#aee3ff"; // green poison puff or water splash
+      effects.push({ kind: "ring", x: b.x, y: b.y, from: 4, to: s.kind === "dart" ? 22 : 14, color, life: 12, max: 12 });
     } else {
-      s.x += (dx / d) * 10;
-      s.y += (dy / d) * 10;
+      s.angle = Math.atan2(dy, dx);
+      s.x += (dx / d) * s.speed;
+      s.y += (dy / d) * s.speed;
     }
   }
   shots = shots.filter((s) => !s.done);
@@ -558,8 +726,9 @@ function step() {
   // Remove dead / escaped bugs
   bugs = bugs.filter((b) => {
     if (b.hp <= 0) {
-      money += rewardFor(b.tier);
-      if (BUG_TYPES[b.tier].boss) showMsg("🎉 Stag Beetle defeated! +150");
+      const reward = rewardFor(b.tier);
+      money += reward;
+      if (BUG_TYPES[b.tier].boss) showMsg(`🎉 ${BUG_TYPES[b.tier].name} defeated! +${reward}`);
       return false;
     }
     return !b.escaped;
@@ -578,9 +747,9 @@ function step() {
     roundActive = false;
     shots = [];
     money += 25 + round * 5; // end-of-round bonus
-    if (round >= ROUNDS.length) {
+    if (round >= totalRounds()) {
       gameOver = true;
-      showMsg("🏆 You won! The pond is safe!");
+      showMsg(`🏆 You beat ${DIFFICULTIES[difficulty].name}! The frogs are safe!`);
     } else {
       showMsg(`Round ${round} cleared! +${25 + round * 5} bonus`);
     }
@@ -659,8 +828,9 @@ function drawMap() {
     ctx.closePath();
     ctx.fill();
   }
+  const bigPad = lilyPads.reduce((a, b) => (b.r > a.r ? b : a));
   ctx.fillStyle = "#f6a5c0"; // a flower on the biggest pad
-  ctx.beginPath(); ctx.arc(450, 266, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(bigPad.x, bigPad.y - 4, 5, 0, Math.PI * 2); ctx.fill();
 
   // Reeds around the edge
   for (const reed of reeds) {
@@ -676,6 +846,8 @@ function drawMap() {
     ctx.fill();
   }
   ctx.lineWidth = 1;
+
+  if (currentMap.goal === "home") drawHome(waypoints.at(-1));
 
   // Arrow showing where the bugs come in
   ctx.fillStyle = "#ffffff";
@@ -725,6 +897,62 @@ function drawMap() {
       ctx.stroke();
     }
   }
+}
+
+// The frogs' home base: a little mushroom house with a frog flag
+function drawHome(p) {
+  const x = p.x, y = p.y + 6;
+  // Shadow
+  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  ctx.beginPath();
+  ctx.ellipse(x, y + 16, 30, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Stem (the walls)
+  ctx.fillStyle = "#f3e5c8";
+  ctx.fillRect(x - 18, y - 8, 36, 26);
+  ctx.strokeStyle = "#c9b48a";
+  ctx.strokeRect(x - 18, y - 8, 36, 26);
+  // Door and window
+  ctx.fillStyle = "#7a4a26";
+  ctx.beginPath();
+  ctx.moveTo(x - 6, y + 18);
+  ctx.lineTo(x - 6, y + 6);
+  ctx.arc(x, y + 6, 6, Math.PI, 0);
+  ctx.lineTo(x + 6, y + 18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#ffe9a0";
+  ctx.fillRect(x + 9, y - 2, 6, 6);
+  // Red mushroom roof with white spots
+  ctx.fillStyle = "#d63b3b";
+  ctx.beginPath();
+  ctx.ellipse(x, y - 8, 30, 20, 0, Math.PI, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  for (const [sx, sy, sr] of [[-14, -14, 4], [2, -22, 5], [15, -13, 3.5], [-3, -12, 2.5]]) {
+    ctx.beginPath();
+    ctx.arc(x + sx, y + sy, sr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Flag with a little frog face
+  ctx.strokeStyle = "#5a3d1e";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + 20, y - 18);
+  ctx.lineTo(x + 20, y - 44);
+  ctx.stroke();
+  ctx.lineWidth = 1;
+  ctx.fillStyle = "#3fa34d";
+  ctx.beginPath();
+  ctx.moveTo(x + 20, y - 44);
+  ctx.lineTo(x + 38, y - 38);
+  ctx.lineTo(x + 20, y - 32);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(x + 25, y - 40, 1.8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 25, y - 36, 1.8, 0, Math.PI * 2); ctx.fill();
 }
 
 // Extra bits drawn on top of every tower: upgrade tiers, ability glow, etc.
@@ -819,10 +1047,12 @@ function drawFrog(f) {
     return;
   }
 
-  // Tongue
+  const bull = f.type === "bullfrog";
+
+  // Tongue (the bullfrog's is extra thick)
   if (f.tongue) {
     ctx.strokeStyle = "#ff6b8a";
-    ctx.lineWidth = 4;
+    ctx.lineWidth = bull ? 8 : 4;
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(f.x, f.y);
@@ -835,21 +1065,46 @@ function drawFrog(f) {
   ctx.translate(f.x, f.y);
   ctx.rotate(f.angle);
 
-  // Body
+  // Body (bullfrogs are bigger, with a pale yellow throat)
   ctx.fillStyle = towerColor(f);
   ctx.beginPath();
-  ctx.ellipse(0, 0, 15, 13, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, bull ? 18 : 15, bull ? 16 : 13, 0, 0, Math.PI * 2);
   ctx.fill();
-
-  // Eyes (facing the target)
-  for (const side of [-1, 1]) {
-    ctx.fillStyle = "white";
+  if (bull) {
+    ctx.fillStyle = "#e8d36a";
     ctx.beginPath();
-    ctx.arc(8, side * 8, 5, 0, Math.PI * 2);
+    ctx.ellipse(9, 0, 6, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(0,0,0,0.18)"; // darker blotches on the back
+    for (const [sx, sy] of [[-8, -6], [-10, 6], [-2, 9]]) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Poison dart frogs have black spots and a dart tube pointing forward
+  if (f.type === "dartfrog") {
+    ctx.fillStyle = "#111";
+    for (const [sx, sy, sr] of [[-6, -5, 2.6], [-2, 5, 2.2], [-9, 3, 1.8], [2, -2, 1.6], [-4, 0, 1.4]]) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#6d4c2f";
+    ctx.fillRect(12, -2, 12, 4);
+  }
+
+  // Eyes (facing the target). Bullfrogs have golden eyes set wider apart.
+  const eyeX = bull ? 6 : 8, eyeY = bull ? 11 : 8;
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = bull ? "#e0b030" : "white";
+    ctx.beginPath();
+    ctx.arc(eyeX, side * eyeY, 5, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "black";
     ctx.beginPath();
-    ctx.arc(10, side * 8, 2.5, 0, Math.PI * 2);
+    ctx.arc(eyeX + 2, side * eyeY, 2.5, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -907,21 +1162,94 @@ function drawStagBeetle(b) {
   ctx.fill();
   ctx.restore();
 
-  // Big health bar + label
+  drawBossHealth(b, 36);
+}
+
+// Big health bar for bosses
+function drawBossHealth(b, above) {
   const w = 60;
   ctx.fillStyle = "#400";
-  ctx.fillRect(b.x - w / 2, b.y - 36, w, 6);
+  ctx.fillRect(b.x - w / 2, b.y - above, w, 6);
   ctx.fillStyle = "#e53935";
-  ctx.fillRect(b.x - w / 2, b.y - 36, w * Math.max(0, b.hp / b.maxHp), 6);
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 10px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("BOSS", b.x, b.y - 40);
+  ctx.fillRect(b.x - w / 2, b.y - above, w * Math.max(0, b.hp / b.maxHp), 6);
+}
+
+// The tier 2 boss: a big, fast yellow jacket with striped body and buzzing wings
+function drawYellowJacket(b) {
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.rotate(b.angle);
+
+  // Buzzing wings
+  const flap = Math.sin(b.wobble * 2.5) * 0.35;
+  ctx.fillStyle = "rgba(255,255,255,0.65)";
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(2, side * 14, 13, 6, side * (0.5 + flap), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Stinger
+  ctx.fillStyle = "#222";
+  ctx.beginPath();
+  ctx.moveTo(-24, 0);
+  ctx.lineTo(-33, -3);
+  ctx.lineTo(-33, 3);
+  ctx.closePath();
+  ctx.fill();
+
+  // Striped abdomen
+  ctx.fillStyle = "#ffcc00";
+  ctx.beginPath();
+  ctx.ellipse(-10, 0, 15, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#1a1a1a";
+  for (const x of [-18, -10, -2]) ctx.fillRect(x, -10, 4, 20);
+
+  // Thorax and head
+  ctx.fillStyle = "#1a1a1a";
+  ctx.beginPath();
+  ctx.ellipse(9, 0, 7, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#ffcc00";
+  ctx.beginPath();
+  ctx.ellipse(19, 0, 6, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Big dark eyes
+  ctx.fillStyle = "#1a1a1a";
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(21, side * 4, 3, 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  drawBossHealth(b, 30);
+}
+
+// Poisoned look: a green glow with little bubbles floating up
+function drawPoison(b) {
+  const size = BUG_TYPES[b.tier].size + 4;
+  const t = performance.now() / 300;
+  ctx.fillStyle = "rgba(124,255,107,0.18)";
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, size, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#7cff6b";
+  for (let i = 0; i < 3; i++) {
+    const rise = (t + i / 3) % 1; // 0 -> 1, then loops
+    ctx.globalAlpha = 1 - rise;
+    ctx.beginPath();
+    ctx.arc(b.x + (i - 1) * 6, b.y - size * 0.3 - rise * 16, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawBug(b) {
   const t = BUG_TYPES[b.tier];
-  if (t.boss) return drawStagBeetle(b);
+  if (b.tier === 4) return drawStagBeetle(b);
+  if (b.tier === 5) return drawYellowJacket(b);
   const s = t.size;
 
   // Wings for hornets and gnats
@@ -997,16 +1325,38 @@ function drawEffects() {
 function draw() {
   drawMap();
   for (const b of bugs) drawBug(b);
+  for (const b of bugs) if (b.poisonTime > 0) drawPoison(b);
   for (const f of frogs) drawFrog(f);
 
-  // Water shots
-  ctx.fillStyle = "#aee3ff";
-  ctx.strokeStyle = "#1e6fb8";
+  // Water drops and poison darts
   for (const s of shots) {
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    if (s.kind === "dart") {
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.angle);
+      ctx.strokeStyle = "#6d4c2f";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-10, 0);
+      ctx.lineTo(4, 0);
+      ctx.stroke();
+      ctx.fillStyle = "#7cff6b"; // poison tip
+      ctx.beginPath();
+      ctx.moveTo(9, 0);
+      ctx.lineTo(3, -3);
+      ctx.lineTo(3, 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      ctx.lineWidth = 1;
+    } else {
+      ctx.fillStyle = "#aee3ff";
+      ctx.strokeStyle = "#1e6fb8";
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
   }
 
   drawEffects();
@@ -1022,10 +1372,26 @@ function drawShopIcon(canvasId, type) {
 }
 drawShopIcon("iconFrog", "frog");
 drawShopIcon("iconTadpole", "tadpole");
+drawShopIcon("iconDart", "dartfrog");
+drawShopIcon("iconBull", "bullfrog");
+
+// Draws a whole map, shrunk down, for the menu cards
+function drawMapThumb(map, thumb) {
+  loadMap(map);
+  const full = document.createElement("canvas");
+  full.width = canvas.width;
+  full.height = canvas.height;
+  const saved = ctx;
+  ctx = full.getContext("2d");
+  drawMap();
+  ctx = saved;
+  thumb.getContext("2d").drawImage(full, 0, 0, thumb.width, thumb.height);
+}
+buildMenu();
 
 // ---------- Main loop ----------
 function loop() {
-  if (!gameOver) {
+  if (!gameOver && !inMenu) {
     for (let i = 0; i < speed; i++) {
       if (roundActive) step();
       else for (const f of frogs) if (f.tongue && --f.tongue.life <= 0) f.tongue = null;
