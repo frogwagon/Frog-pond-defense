@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frog Pond Defense</title>
+  <style>
+    body {
+      margin: 0;
+      background: #1d2b1f;
+      color: #eef5e6;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      justify-content: center;
+      padding: 16px;
+    }
+    #wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+    #game { background: #6fae4f; border-radius: 8px; cursor: pointer; max-width: 100%; }
+    #panel {
+      width: 250px;
+      background: #2a3d2c;
+      border-radius: 8px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    h1 { font-size: 20px; margin: 0; }
+    .stat { display: flex; justify-content: space-between; font-size: 16px; }
+    button {
+      background: #4caf50; color: white; border: 0; border-radius: 6px;
+      padding: 10px; font-size: 15px; cursor: pointer;
+    }
+    button:disabled { background: #556b57; color: #b9c9b5; cursor: default; }
+    #info { font-size: 13px; line-height: 1.45; color: #cfe0c8; }
+    #msg { font-weight: bold; min-height: 1.2em; }
+    .shopItem {
+      display: flex; gap: 8px; align-items: center; text-align: left;
+      background: #3a523c; border: 2px solid transparent; padding: 6px;
+    }
+    .shopItem.selected { border-color: #ffe066; background: #466b48; }
+    .shopItem canvas { border-radius: 6px; flex-shrink: 0; cursor: inherit; }
+    #iconFrog { background: #6fae4f; }
+    #iconTadpole { background: #3b8fd6; }
+    .shopItem small { color: #cfe0c8; }
+    .bug { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+
+    /* Upgrade menu for a clicked tower */
+    #towerPanel {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      background: #1f2f21;
+      border: 2px solid #ffe066;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .tp-head { display: flex; justify-content: space-between; align-items: center; font-size: 17px; }
+    .tp-close { background: transparent; padding: 2px 6px; font-size: 16px; }
+    .tp-stats { font-size: 12px; color: #cfe0c8; }
+    .tp-path { display: flex; flex-direction: column; gap: 4px; }
+    .tp-name { font-size: 13px; font-weight: bold; display: flex; justify-content: space-between; }
+    .tp-buy { font-size: 13px; padding: 7px; text-align: left; }
+    .tp-ability { background: #e8a317; font-weight: bold; }
+    .tp-sell { background: #8a3b3b; font-size: 13px; padding: 7px; }
+
+    /* Abilities bar on the left of the map */
+    #abilityBar {
+      width: 170px;
+      background: #2a3d2c;
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 480px;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+    #abilityBar h2 { font-size: 16px; margin: 0; }
+    #abilityList { display: flex; flex-direction: column; gap: 6px; }
+    .ab-empty { font-size: 12px; color: #cfe0c8; }
+    .ab-btn {
+      display: flex; flex-direction: column; gap: 3px; text-align: left;
+      background: #3a523c; border: 2px solid; padding: 7px;
+    }
+    .ab-btn:not(:disabled):hover { background: #4b6b4e; }
+    .ab-btn:disabled { background: #2f3f31; }
+    .ab-name { font-weight: bold; font-size: 14px; }
+    .ab-sub { font-size: 11px; color: #cfe0c8; }
+    .ab-bar { height: 5px; background: #1a241b; border-radius: 3px; overflow: hidden; }
+    .ab-bar span { display: block; height: 100%; }
+    #useAllBtn { background: #e8a317; font-weight: bold; font-size: 13px; padding: 8px; }
+    .ab-tip { font-size: 11px; color: #9fb79a; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="abilityBar">
+      <h2>★ Abilities</h2>
+      <button id="useAllBtn">Use all ready (Q)</button>
+      <div id="abilityList"></div>
+      <div class="ab-tip">Hover a button to see which tower it is.</div>
+    </div>
+    <canvas id="game" width="800" height="480"></canvas>
+    <div id="panel">
+      <h1>🐸 Frog Pond Defense</h1>
+      <div class="stat"><span>Round</span><span id="round">0 / 50</span></div>
+      <div class="stat"><span>Lives</span><span id="lives">20</span></div>
+      <div class="stat"><span>Flies (money)</span><span id="money">120</span></div>
+      <button id="startBtn">Start Round 1</button>
+      <div style="display:flex;gap:8px">
+        <button id="speedBtn" style="flex:1">Speed: 1x</button>
+        <button id="restartBtn" style="flex:1;background:#8a3b3b">↻ Restart</button>
+      </div>
+      <div id="msg"></div>
+      <div id="towerPanel"></div>
+      <b>Shop</b>
+      <button class="shopItem selected" id="shopFrog">
+        <canvas id="iconFrog" width="40" height="40"></canvas>
+        <span><b>Frog</b> – 50<br><small>Tongue attack. Goes on grass.</small></span>
+      </button>
+      <button class="shopItem" id="shopTadpole">
+        <canvas id="iconTadpole" width="40" height="40"></canvas>
+        <span><b>Tadpole</b> – 80<br><small>Shoots water. Long range, fast. Pond only!</small></span>
+      </button>
+      <div id="info">
+        <b>How to play</b><br>
+        Pick from the shop (or press 1 / 2), then click the map to place it.<br>
+        Click a frog or tadpole to open its upgrade menu.<br>
+        3 paths: ⚡ Speed, 💥 Damage, 🎯 Range. Only one path can go past tier 2. Tier 4 unlocks a super attack – fire it from the Abilities bar on the left, or press Q to fire them all.<br>
+        Survive all 50 rounds!<br>
+        Stop the bugs reaching the pond!<br><br>
+        <b>Bugs</b><br>
+        <span class="bug" style="background:#333"></span>Tier 1 – Gnat (weak)<br>
+        <span class="bug" style="background:#8b4513"></span>Tier 2 – Beetle (tanky)<br>
+        <span class="bug" style="background:#f2c200"></span>Tier 3 – Hornet (fast + tough)<br>
+        <span class="bug" style="background:#4a2c17;width:14px;height:14px"></span><b>BOSS – Stag Beetle</b> (super tanky, slow) – round 5, 8, then every 5 rounds
+      </div>
+    </div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
