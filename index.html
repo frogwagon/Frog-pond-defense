@@ -93,20 +93,22 @@
     .ab-bar span { display: block; height: 100%; }
     #useAllBtn { background: #e8a317; font-weight: bold; font-size: 13px; padding: 8px; }
     .ab-tip { font-size: 11px; color: #9fb79a; }
-    #iconBull { background: #6fae4f; }
+    #iconBull, #iconPeeper, #iconFlying, #iconWood, #iconPacman, #iconGlass, #iconTomato { background: #6fae4f; }
+    #iconPad { background: #3b8fd6; }
 
     /* Start menu over the map */
     #gameArea { position: relative; max-width: 100%; }
     #game { display: block; }
     #menu {
       position: absolute; inset: 0;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px;
       background: rgba(20, 35, 22, 0.94);
       border-radius: 8px;
       padding: 12px;
       overflow-y: auto;
     }
-    #menu h2 { margin: 0; font-size: 28px; }
+    #menu h2 { margin: auto 0 0; font-size: 28px; } /* auto margins: centered when it fits, scrollable when it does not */
+    #mapList { margin-bottom: auto; }
     #menu p { margin: 0 0 8px; color: #cfe0c8; }
     #mapList { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
     .map-card {
@@ -118,6 +120,7 @@
     .map-name { font-weight: bold; font-size: 17px; display: flex; justify-content: space-between; align-items: center; }
     .map-diff { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
     .map-diff.normal { background: #4caf50; }
+    .map-diff.medium { background: #b8860b; }
     .map-diff.hard { background: #c0392b; }
     .map-desc { font-size: 12px; color: #cfe0c8; line-height: 1.4; }
     #diffList { display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; justify-content: center; }
@@ -131,7 +134,7 @@
     .diff-btn.hard.selected { background: #a33028; border-color: #ffe066; }
   </style>
 </head>
-<body>
+<body data-version="20">
   <div id="wrap">
     <div id="abilityBar">
       <h2>★ Abilities</h2>
@@ -151,9 +154,10 @@
       </div>
     </div>
     <div id="panel">
-      <h1>🐸 Frog Pond Defense</h1>
+      <h1>🐸 Frog Pond Defense <small id="ver" style="font-size:11px;color:#9fb79a;font-weight:normal"></small></h1>
+      <div id="versionWarning" style="display:none;background:#a33028;padding:8px;border-radius:6px;font-size:13px"></div>
       <div class="stat"><span>Round</span><span id="round">0 / 50</span></div>
-      <div class="stat"><span>Lives</span><span id="lives">50</span></div>
+      <div class="stat"><span>Lives</span><span id="lives">100</span></div>
       <div class="stat"><span>Flies (money)</span><span id="money">120</span></div>
       <button id="startBtn">Start Round 1</button>
       <div style="display:flex;gap:8px">
@@ -178,24 +182,68 @@
       </button>
       <button class="shopItem" id="shopBull">
         <canvas id="iconBull" width="40" height="40"></canvas>
-        <span><b>Bullfrog</b> – 70<br><small>Huge slap, slow, tiny range. Put it right next to the path!</small></span>
+        <span><b>Bullfrog</b> – 70<br><small>Huge slap with splash damage (hits bugs around its target too). Slow, tiny range: put it right next to the path!</small></span>
+      </button>
+      <button class="shopItem" id="shopPeeper">
+        <canvas id="iconPeeper" width="40" height="40"></canvas>
+        <span><b>Spring Peeper</b> – 60<br><small>Croak shockwave: hits and stuns every bug around it for 0.25 seconds.</small></span>
+      </button>
+      <button class="shopItem" id="shopPad">
+        <canvas id="iconPad" width="40" height="40"></canvas>
+        <span><b>Lily Pad</b> – 40 <small>(6)</small><br><small>Goes in the pond. Lets you put land frogs on the water!</small></span>
+      </button>
+      <button class="shopItem" id="shopFlying">
+        <canvas id="iconFlying" width="40" height="40"></canvas>
+        <span><b>Flying Frog</b> – 90 <small>(7)</small><br><small>Its tongue chains to 3 bugs in a row.</small></span>
+      </button>
+      <button class="shopItem" id="shopWood">
+        <canvas id="iconWood" width="40" height="40"></canvas>
+        <span><b>Wood Frog</b> – 80 <small>(8)</small><br><small>Frosty croak: slows every bug around it by 50% for 2 seconds.</small></span>
+      </button>
+      <button class="shopItem" id="shopPacman">
+        <canvas id="iconPacman" width="40" height="40"></canvas>
+        <span><b>Pacman Frog</b> – 150 <small>(9)</small><br><small>Swallows a regular bug whole! Takes a big bite out of bosses. Slow, short range.</small></span>
+      </button>
+      <button class="shopItem" id="shopGlass">
+        <canvas id="iconGlass" width="40" height="40"></canvas>
+        <span><b>Glass Frog</b> – 110 <small>(0)</small><br><small>Support: towers in its range attack 30%+ faster and hit 10%+ harder. Doesn't attack.</small></span>
+      </button>
+      <button class="shopItem" id="shopTomato">
+        <canvas id="iconTomato" width="40" height="40"></canvas>
+        <span><b>Tomato Frog</b> – 100 <small>(-)</small><br><small>Money maker: makes flies every few seconds during rounds.</small></span>
       </button>
       <div id="info">
         <b>How to play</b><br>
-        Pick from the shop (or press 1 / 2 / 3 / 4), then click the map to place it.<br>
+        Pick from the shop (number keys 1 – 9, 0 and -), then click the map to place it.<br>
         Click any of your towers to open its upgrade menu.<br>
         3 paths: ⚡ Speed, 💥 Damage, 🎯 Range. Only one path can go past tier 2. Tier 4 unlocks a super attack – fire it from the Abilities bar on the left, or press Q to fire them all.<br>
-        Survive every round: Easy = 25, Medium = 40, Hard = 50.<br>
+        Survive every round: Easy = 25, Medium = 40, Hard = 50. Freeplay never ends – see how far you can get! (You can also keep going in Freeplay after you win.)<br>
         Stop the bugs reaching the pond (or the frogs' home)!<br><br>
-        <b>Bugs</b><br>
-        <span class="bug" style="background:#333"></span>Tier 1 – Gnat (weak)<br>
-        <span class="bug" style="background:#8b4513"></span>Tier 2 – Beetle (tanky)<br>
-        <span class="bug" style="background:#f2c200"></span>Tier 3 – Hornet (fast + tough)<br>
-        <span class="bug" style="background:#4a2c17;width:14px;height:14px"></span><b>BOSS – Stag Beetle</b> (super tanky, slow) – round 5, 8, then every 5 rounds<br>
-        <span class="bug" style="background:#ffcc00;width:14px;height:14px;border:2px solid #1a1a1a;box-sizing:border-box"></span><b>BOSS – Yellow Jacket</b> (fast, tanky, flies across corners) – round 15
+        <b>Bugs</b> (weakest to strongest)<br>
+        <span class="bug" style="background:#7a6a2c"></span>1 – Cricket (hops, weakest)<br>
+        <span class="bug" style="background:#333"></span>2 – Gnat<br>
+        <span class="bug" style="background:#5d4a3a"></span>3 – Mosquito (fast)<br>
+        <span class="bug" style="background:#8b4513"></span>4 – Beetle (slow, tanky)<br>
+        <span class="bug" style="background:#d62828"></span>5 – Ladybug<br>
+        <span class="bug" style="background:#b5300f"></span>6 – Fire Ant<br>
+        <span class="bug" style="background:#f2c200"></span>7 – Hornet (fast)<br>
+        <span class="bug" style="background:#5cb85c"></span>8 – Praying Mantis<br>
+        <span class="bug" style="background:#e8a317"></span>9 – Wasp (fast + tough, from round 18)<br>
+        <span class="bug" style="background:#3b2a1e"></span>10 – Rhino Beetle (strongest, from round 26)<br>
+        <br><b>Bosses</b> (weakest to strongest)<br>
+        <span class="bug" style="background:#4a2c17;width:14px;height:14px"></span>11 – <b>Stag Beetle</b> (slow) – round 5, 8, every 5<br>
+        <span class="bug" style="background:#8a2b1a;width:14px;height:14px"></span>12 – <b>Giant Centipede</b> – rounds 20, 30, 50<br>
+        <span class="bug" style="background:#b5651d;width:14px;height:14px"></span>13 – <b>Atlas Moth</b> (flies) – rounds 25, 35, 50<br>
+        <span class="bug" style="background:#ffcc00;width:14px;height:14px;border:2px solid #1a1a1a;box-sizing:border-box"></span>14 – <b>Yellow Jacket</b> (fast, flies) – 15, 22, 28, 35, 42, 45, 50<br>
+        <span class="bug" style="background:#e8731c;width:14px;height:14px;border:2px solid #1a1a1a;box-sizing:border-box"></span>15 – <b>Asian Giant Hornet</b> (flies, strongest) – rounds 40, 50<br>
+        <br><b>💀 ULTRA BOSS – Giant Mole Cricket</b> (round 50, Hard only)<br>
+        Stage 1: a huge, slow, tanky bug. Stage 2 (at half health): it digs a tunnel. Every bug comes out of the tunnel, easy bugs keep pouring out, and it takes 25% less damage. Too big to stun!<br>
+        <br>Flying bosses cut corners, and fly straight across the pond on Frog Home!
       </div>
     </div>
   </div>
-  <script src="game.js"></script>
+  <!-- The ?v= number makes browsers load the newest game.js instead of an old saved copy.
+       Change it (and GAME_VERSION in game.js) every time you update the game. -->
+  <script src="game.js?v=20"></script>
 </body>
 </html>
