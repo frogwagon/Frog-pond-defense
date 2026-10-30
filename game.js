@@ -3,7 +3,7 @@
 
 // Bump this (and data-version + ?v= in index.html) every time the game is updated.
 // If index.html and game.js come from different updates, the game shows a warning.
-const GAME_VERSION = 20;
+const GAME_VERSION = 22;
 if (document.body && document.body.dataset) {
   const page = Number(document.body.dataset.version || 0);
   const ver = document.getElementById("ver");
@@ -147,13 +147,13 @@ const BUG_TYPES = {
   // ULTRA BOSS (round 50): two stages. At half health it digs a tunnel, and from then on
   // every bug comes out of the tunnel, easy bugs keep pouring out, and it takes less damage.
   // It's too big to be stunned by Spring Peepers.
-  16: { name: "Giant Mole Cricket", hp: 14000, speed: 0.35, reward: 1000, lifeCost: 50, color: "#6b4a2f", size: 26, boss: true, ultra: true, stunImmune: true },
+  16: { name: "Giant Mole Cricket", hp: 5000, speed: 0.35, reward: 1000, lifeCost: 50, color: "#6b4a2f", size: 26, boss: true, ultra: true, stunImmune: true },
 };
 
 // Ultra boss stage 2 settings
 const ULTRA = {
   armor: 0.25,            // takes 25% less damage in stage 2
-  flowEvery: 40,          // frames between easy bugs coming out of the tunnel
+  flowEvery: 50,          // frames between easy bugs coming out of the tunnel
   flowBugs: [6, 1, 7],    // Cricket, Gnat, Mosquito
 };
 let tunnel = null;        // { x, y, wp, flowTimer } once the ultra boss digs it
@@ -245,12 +245,12 @@ function rewardFor(tier) {
   return Math.max(1, Math.round(BUG_TYPES[tier].reward / (1 + (round - 1) * REWARD_DROP)));
 }
 const REWARD_DROP = 0.04;
-const LATE_HP = 0.008;
+const LATE_HP = 0.005;
 
 // How much tougher bugs are in a given round
 function hpScale(r) {
   const late = Math.max(0, r - 10);
-  return 1 + (r - 1) * 0.1 + late * late * LATE_HP; // grows much faster after round 10
+  return 1 + (r - 1) * 0.08 + late * late * LATE_HP; // grows faster after round 10
 }
 
 // ---------- Towers (sold in the shop) ----------
