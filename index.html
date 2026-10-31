@@ -184,6 +184,18 @@
     #onlineBox button { padding: 6px 10px; font-size: 13px; }
     #onlineBox input { padding: 6px; border-radius: 6px; border: 1px solid #4f7fb3; background: #142030; color: #eef5e6; text-transform: uppercase; width: 120px; }
     #olStatus { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .ol-start { background: #2e7d32 !important; border: 2px solid #9be59f; font-size: 18px !important; padding: 10px 26px !important; font-weight: bold; }
+    #mapPick { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; display: none; align-items: center; justify-content: center; padding: 16px; }
+    #mapPick .mp-inner { background: #1f2f21; border: 2px solid #4f7fb3; border-radius: 12px; padding: 12px; max-width: 900px; width: 100%; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+    #mapPick .mp-head { display: flex; justify-content: space-between; width: 100%; font-size: 18px; }
+    #mapPick .mp-head button { padding: 2px 10px; }
+    #mapPick .mp-diffs { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    #mapPick .mp-diffs button { padding: 6px 12px; font-size: 13px; background: #2a3d2c; border: 2px solid #4b6b4e; }
+    #mapPick .mp-diffs button.on { border-color: #ffe066; background: #466b48; }
+    #mapPick .mp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; width: 100%; }
+    #mapPick .mp-card { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px; background: #2a3d2c; border: 2px solid #4b6b4e; border-radius: 8px; }
+    #mapPick .mp-card:hover { border-color: #ffe066; }
+    #mapPick .mp-card canvas { width: 100%; border-radius: 6px; }
     .ol-code { font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #ffe066; }
     .ol-link { display: flex; gap: 4px; }
     .ol-link input { width: 230px !important; text-transform: none !important; font-size: 11px; }
@@ -303,7 +315,7 @@
     .weather-btn { width: auto; padding: 6px 12px; }
   </style>
 </head>
-<body data-version="44" class="in-menu">
+<body data-version="47" class="in-menu">
   <div id="versionWarning" style="display:none;background:#a33028;padding:8px;border-radius:6px;font-size:13px;margin-bottom:10px"></div>
   <div id="wrap">
     <div id="abilityBar">
@@ -503,10 +515,54 @@
         <canvas id="iconSurinam" width="40" height="40"></canvas>
         <span><b>Surinam Toad</b> – 95<br><small>WATER: shoots 3 different bugs at once.</small></span>
       </button>
+      <button class="shopItem" id="shopGladiator">
+        <canvas id="iconGladiator" width="40" height="40"></canvas>
+        <span><b>Gladiator Frog</b> – 130<br><small>Throws a spear in a LINE: hits every bug in it. Slow, 50 damage.</small></span>
+      </button>
+      <button class="shopItem" id="shopFirebelly">
+        <canvas id="iconFirebelly" width="40" height="40"></canvas>
+        <span><b>Fire-bellied Toad</b> – 90<br><small>Spits fire: every hit sets bugs on fire 🔥 (Burn).</small></span>
+      </button>
+      <button class="shopItem" id="shopMantella">
+        <canvas id="iconMantella" width="40" height="40"></canvas>
+        <span><b>Golden Mantella</b> – 85<br><small>Super fast tiny hits that Weaken 💔 bugs (they take more damage).</small></span>
+      </button>
+      <button class="shopItem" id="shopCane">
+        <canvas id="iconCane" width="40" height="40"></canvas>
+        <span><b>Cane Toad</b> – 110<br><small>Toxic cloud: hurts and Weakens 💔 every bug around it.</small></span>
+      </button>
+      <button class="shopItem" id="shopBudgett">
+        <canvas id="iconBudgett" width="40" height="40"></canvas>
+        <span><b>Budgett's Frog</b> – 95<br><small>Close-range biter. Double damage on hurt bugs.</small></span>
+      </button>
+      <button class="shopItem" id="shopHairy">
+        <canvas id="iconHairy" width="40" height="40"></canvas>
+        <span><b>Hairy Frog</b> – 120<br><small>Close-range claws: each slash hits up to 3 bugs.</small></span>
+      </button>
+      <button class="shopItem" id="shopCoqui">
+        <canvas id="iconCoqui" width="40" height="40"></canvas>
+        <span><b>Coquí</b> – 95<br><small>Support: its song makes frogs nearby reach farther.</small></span>
+      </button>
+      <button class="shopItem" id="shopMossy">
+        <canvas id="iconMossy" width="40" height="40"></canvas>
+        <span><b>Mossy Frog</b> – 100<br><small>Camouflaged: its first hit on every bug does 3x damage.</small></span>
+      </button>
+      <button class="shopItem" id="shopParadox">
+        <canvas id="iconParadox" width="40" height="40"></canvas>
+        <span><b>Paradoxical Frog</b> – 90<br><small>WATER: bubbles grow as they fly (farther = more damage).</small></span>
+      </button>
+      <button class="shopItem" id="shopTiticaca">
+        <canvas id="iconTiticaca" width="40" height="40"></canvas>
+        <span><b>Titicaca Water Frog</b> – 115<br><small>WATER: whirlpools drag back and slow every bug nearby.</small></span>
+      </button>
+      <button class="shopItem" id="shopMarsh">
+        <canvas id="iconMarsh" width="40" height="40"></canvas>
+        <span><b>Marsh Frog</b> – 120<br><small>WATER: long-range mud bombs that splash and Weaken 💔.</small></span>
+      </button>
     </div>
   </div>
   <!-- The ?v= number makes browsers load the newest game.js instead of an old saved copy.
        Change it (and GAME_VERSION in game.js) every time you update the game. -->
-  <script src="game.js?v=44"></script>
+  <script src="game.js?v=47"></script>
 </body>
 </html>

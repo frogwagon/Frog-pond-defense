@@ -3,7 +3,7 @@
 
 // Bump this (and data-version + ?v= in index.html) every time the game is updated.
 // If index.html and game.js come from different updates, the game shows a warning.
-const GAME_VERSION = 44;
+const GAME_VERSION = 47;
 if (document.body && document.body.dataset) {
   const page = Number(document.body.dataset.version || 0);
   const ver = document.getElementById("ver");
@@ -128,6 +128,16 @@ MAPS.push(
     lilyPads: [{ x: 360, y: 220, r: 15 }, { x: 430, y: 245, r: 13 }, { x: 330, y: 250, r: 10 }],
   });
 }
+// ---- Twin Lakes: TWO ponds. Bugs cross the first lake on a slippery log bridge, then dive into the second. ----
+MAPS.push({
+  name: "Twin Lakes", difficulty: "Medium",
+  desc: "GIMMICK: two lakes! Bugs cross the first one on a slippery log bridge (half speed), then head for the second. Lots of water for water frogs.",
+  pond: { x: 560, y: 300, rx: 120, ry: 80 },
+  extraPonds: [{ x: 190, y: 340, rx: 120, ry: 70 }],
+  path: [[0, 8], [7, 8], [7, 3], [17, 3], [17, 7], [14, 7]],
+  goal: "pond", reedGap: null, seed: 81, slippery: 0.5,
+  lilyPads: [],
+});
 
 // The current map's layout (filled in by loadMap)
 let currentMap, POND, PATH_TILES, waypoints, entrance, pathSet, decorations, reeds, lilyPads, mapPadTiles;
@@ -263,6 +273,21 @@ const BUG_TYPES = {
   // Spiderling: tiny and fast. Only comes out of a Wolf Spider.
   23: { name: "Spiderling", hp: 80, speed: 1.6, reward: 6, lifeCost: 2, color: "#7a5a3e", size: 7, look: "spiderling" },
   21: { name: "Hercules Beetle", hp: 6000, speed: 0.45, reward: 450, lifeCost: 15, color: "#2a2018", size: 24, boss: true, armor: 0.3 },
+  // ----- Big update bugs -----
+  // Firefly: a fast flyer that glows. It's fireproof: Burn doesn't hurt it.
+  24: { name: "Firefly", hp: 120, speed: 1.9, reward: 12, lifeCost: 2, color: "#2a2a1a", size: 9, look: "firefly", flies: true, cornerCut: 40, fireproof: true },
+  // Termite: tiny and weak, but they come in big swarms
+  25: { name: "Termite", hp: 40, speed: 1.2, reward: 4, lifeCost: 1, color: "#e8dcc0", size: 7, look: "termite" },
+  // Dragonfly: the fastest bug of all, and it flies across corners
+  26: { name: "Dragonfly", hp: 260, speed: 2.4, reward: 26, lifeCost: 3, color: "#2a9d8f", size: 11, look: "dragonfly", flies: true, cornerCut: 70 },
+  // Dung Beetle: pushes a dung ball that soaks up the first 40% of its health in damage
+  27: { name: "Dung Beetle", hp: 500, speed: 0.8, reward: 40, lifeCost: 5, color: "#2a2018", size: 12, look: "dung", shield: 0.4 },
+  // Cockroach: super tough. The first hit that would squash it leaves it on 1 health instead.
+  28: { name: "Cockroach", hp: 320, speed: 1.5, reward: 30, lifeCost: 4, color: "#6b3d1a", size: 11, look: "roach", tough: true },
+  // BOSS: Emperor Scorpion. Armored (20%), and every 4 seconds its tail stings the closest frog,
+  // so that frog can't attack for 2 seconds.
+  29: { name: "Emperor Scorpion", hp: 3500, speed: 0.6, reward: 300, lifeCost: 13, color: "#1c1c2a", size: 20, boss: true, armor: 0.2,
+    sting: { every: 240, range: 120, frames: 120 } },
   16: { name: "Giant Mole Cricket", hp: 5000, speed: 0.35, reward: 1000, lifeCost: 50, color: "#6b4a2f", size: 26, boss: true, ultra: true, stunImmune: true },
 };
 
@@ -285,6 +310,11 @@ const NORMALS = [
   { id: 12, from: 16, weight: 0.7 },
   { id: 19, from: 12, weight: 0.6 }, // Stink Bug
   { id: 20, from: 20, weight: 0.6 }, // Pill Bug
+  { id: 25, from: 13, weight: 1.2 }, // Termite (swarms)
+  { id: 24, from: 14, weight: 0.8 }, // Firefly
+  { id: 26, from: 18, weight: 0.6 }, // Dragonfly
+  { id: 28, from: 22, weight: 0.6 }, // Cockroach
+  { id: 27, from: 26, weight: 0.5 }, // Dung Beetle
 ];
 
 // Rounds 1-10 are hand-made: [bug ID, count] groups. (Bosses are added below.)
@@ -328,6 +358,7 @@ const BOSS_PLAN = [
   { id: 14, debut: 15 },  // Atlas Moth
   { id: 22, debut: 20 },  // Wolf Spider
   { id: 5,  debut: 25 },  // Yellow Jacket
+  { id: 29, debut: 30 },  // Emperor Scorpion
   { id: 15, debut: 35 },  // Asian Giant Hornet
   { id: 21, debut: 45 },  // Hercules Beetle
 ];
@@ -378,7 +409,7 @@ function updateReveals() {
 // Everything in a round. Rounds after 50 (Freeplay) are made up on the spot and never run out.
 // BOSS RUSH: every round is only bosses. It goes through the 7 regular bosses in order,
 // and each time round it brings one more of each.
-const RUSH_ORDER = [4, 13, 14, 22, 5, 15, 21];
+const RUSH_ORDER = [4, 13, 14, 22, 5, 29, 15, 21];
 function isBossRush() { return !challenge && DIFFICULTIES[difficulty] && DIFFICULTIES[difficulty].bossRush; }
 // Boss Rush bosses are a lot tougher than they'd normally be at that round
 function hpRound() { return isBossRush() ? 10 + round * 2 : round; }
@@ -529,6 +560,116 @@ TOWERS.surinam = {
   shots: 3,
 };
 
+// ===== BIG UPDATE: 11 more frogs (8 land, 3 water) =====
+// Gladiator Frog: throws a spear in a straight LINE. Every bug in the line gets hit. Slow but strong.
+TOWERS.gladiator = {
+  name: "Gladiator Frog", cost: 130, damage: 50, range: 200, cooldown: 130,
+  colors: ["#b8864a", "#9c6e38", "#7f5728"], upgradeCosts: [60, 120, 210, 400],
+  width: 14, // how wide the spear's line is (in pixels, each side)
+};
+// Fire-bellied Toad: spits fire. Every hit sets the bug on fire (BURN).
+TOWERS.firebelly = {
+  name: "Fire-bellied Toad", cost: 90, damage: 8, range: 105, cooldown: 45,
+  colors: ["#3f6b3a", "#33592f", "#274725"], upgradeCosts: [40, 80, 150, 300],
+  burn: 3, // total burn damage = 3x the hit, over 3 seconds
+};
+// Golden Mantella: tiny and super fast. Its toxic touch WEAKENS bugs (they take more damage from everything).
+TOWERS.mantella = {
+  name: "Golden Mantella", cost: 85, damage: 4, range: 100, cooldown: 12,
+  colors: ["#f2a31b", "#e08c0c", "#c47608"], upgradeCosts: [40, 80, 150, 300],
+  weak: 0.2, weakFrames: 120, // Weakened: +20% damage taken for 2 seconds
+};
+// Cane Toad: a toxic cloud around it hurts and WEAKENS every bug in range.
+TOWERS.canetoad = {
+  name: "Cane Toad", cost: 110, damage: 12, range: 80, cooldown: 120,
+  colors: ["#8a7346", "#755f36", "#5f4b28"], upgradeCosts: [50, 100, 180, 350],
+  weak: 0.25, weakFrames: 180,
+};
+// Budgett's Frog: a screaming, biting brawler. Short range, fast heavy bites, double damage on hurt bugs.
+TOWERS.budgett = {
+  name: "Budgett's Frog", cost: 95, damage: 22, range: 45, cooldown: 35,
+  colors: ["#7d7a5c", "#68654a", "#52503a"], upgradeCosts: [45, 90, 160, 320],
+};
+// Hairy Frog: claws pop out of its toes! Each slash hits up to 3 bugs.
+TOWERS.hairy = {
+  name: "Hairy Frog", cost: 120, damage: 26, range: 55, cooldown: 60,
+  colors: ["#5d4a36", "#4b3b2a", "#3a2d20"], upgradeCosts: [55, 110, 190, 360],
+  cleave: 3,
+};
+// Coqui: SUPPORT. Its song makes frogs in range reach farther (and hit harder with Power Song). It doesn't attack.
+TOWERS.coqui = {
+  name: "Coquí", cost: 95, damage: 0, range: 95, cooldown: 0,
+  colors: ["#c9a46a", "#b58d50", "#9c763c"], upgradeCosts: [45, 90, 170, 330],
+  support: true, noAbility: true,
+};
+// Vietnamese Mossy Frog: camouflaged. Its FIRST hit on every bug is an ambush for 3x damage.
+TOWERS.mossy = {
+  name: "Mossy Frog", cost: 100, damage: 16, range: 125, cooldown: 55,
+  colors: ["#5b8a3a", "#4a7530", "#3a5f25"], upgradeCosts: [45, 90, 165, 330],
+  ambush: 3,
+};
+// Paradoxical Frog (WATER): its bubbles grow as they fly: the farther the bug, the more damage (up to 2x).
+TOWERS.paradox = {
+  name: "Paradoxical Frog", cost: 90, damage: 12, range: 175, cooldown: 32, water: true,
+  colors: ["#6f8f4a", "#5c7a3c", "#4a642f"], upgradeCosts: [40, 80, 150, 300],
+};
+// Titicaca Water Frog (WATER): stirs up whirlpools that drag back and slow every bug in range.
+TOWERS.titicaca = {
+  name: "Titicaca Water Frog", cost: 115, damage: 10, range: 95, cooldown: 150, water: true,
+  colors: ["#6a6f5a", "#585c4a", "#46493a"], upgradeCosts: [50, 100, 180, 350],
+  slow: 0.4, slowFrames: 90, pull: 22,
+};
+// Marsh Frog (WATER): lobs mud bombs a long way. The splash WEAKENS every bug it hits.
+TOWERS.marsh = {
+  name: "Marsh Frog", cost: 120, damage: 22, range: 210, cooldown: 80, water: true,
+  colors: ["#5e8f55", "#4d7a45", "#3d6337"], upgradeCosts: [55, 110, 200, 380],
+  splash: 45, weak: 0.25, weakFrames: 180,
+};
+
+// Coquí song: [range boost by Louder Song tier], [damage boost by Power Song tier]
+const COQUI_RANGE = [0.15, 0.2, 0.25, 0.3, 0.4];
+const COQUI_POWER = [0, 0.06, 0.12, 0.18, 0.25];
+// The best Coquí song reaching this frog (songs from several Coquís don't stack)
+function coquiBoost(f) {
+  const best = { range: 0, power: 0 };
+  for (const g of frogs) {
+    if (g.type !== "coqui" || g === f) continue;
+    const reach = towerStats(g).range; // (the song reaches as far as its range circle)
+    if (Math.hypot(g.x - f.x, g.y - f.y) <= reach) {
+      best.range = Math.max(best.range, COQUI_RANGE[g.tiers[0]]);
+      best.power = Math.max(best.power, COQUI_POWER[g.tiers[1]]);
+    }
+  }
+  return best;
+}
+
+// ---------- 2 new status effects ----------
+// 🔥 BURN: fire damage over time (stacks with poison). When a burning bug dies, the fire spreads to bugs next to it.
+function burn(b, total, frames = 180) {
+  if (BUG_TYPES[b.tier].fireproof || total <= 0) return;
+  b.burnDmg = Math.max(b.burnDmg || 0, total / frames);
+  b.burnTime = Math.max(b.burnTime || 0, frames);
+  b.burnSrc = attacker;
+}
+// 💔 WEAKENED: the bug takes extra damage from EVERYTHING (amt 0.25 = +25%) for a while.
+function weaken(b, amt, frames) {
+  b.weakAmt = Math.max(b.weakTime > 0 ? b.weakAmt || 0 : 0, amt);
+  b.weakTime = Math.max(b.weakTime || 0, frames);
+}
+// Every bug touching a straight line from the frog (for the Gladiator Frog's spear)
+function lineHits(f, ang, len, width) {
+  const cx = Math.cos(ang), cy = Math.sin(ang);
+  return bugs.filter((b) => {
+    if (b.hp <= 0 || b.escaped || !canSee(b)) return false;
+    const dx = b.x - f.x, dy = b.y - f.y, size = BUG_TYPES[b.tier].size;
+    const along = dx * cx + dy * cy, side = Math.abs(dy * cx - dx * cy);
+    return along > 0 && along <= len + size && side <= width + size;
+  });
+}
+function lance(f, ang, len, color = "#ffd27a", life = 14) {
+  effects.push({ kind: "beam", x: f.x, y: f.y, x2: f.x + Math.cos(ang) * len, y2: f.y + Math.sin(ang) * len, color, life, max: life });
+}
+
 TOWERS.lilypad = { name: "Lily Pad", cost: 40, damage: 0, range: 0, cooldown: 0, isPad: true, isTower: false };
 
 let pads = new Set(); // tiles ("c,r") that have a lily pad
@@ -538,6 +679,8 @@ const SHOP_BUTTONS = {
   lilypad: "shopPad", flyingfrog: "shopFlying", woodfrog: "shopWood", pacman: "shopPacman",
   glassfrog: "shopGlass", tomatofrog: "shopTomato",
   goliath: "shopGoliath", leopard: "shopLeopard", treefrog: "shopTree", clawedfrog: "shopClawed", surinam: "shopSurinam",
+  gladiator: "shopGladiator", firebelly: "shopFirebelly", mantella: "shopMantella", canetoad: "shopCane", budgett: "shopBudgett",
+  hairy: "shopHairy", coqui: "shopCoqui", mossy: "shopMossy", paradox: "shopParadox", titicaca: "shopTiticaca", marsh: "shopMarsh",
 };
 // Number keys pick from the shop: 1-9 then 0, and - for the last one
 const SHOP_KEYS = { 1: "frog", 2: "tadpole", 3: "dartfrog", 4: "bullfrog", 5: "peeper", 6: "lilypad",
@@ -548,17 +691,17 @@ const SHOP_KEYS = { 1: "frog", 2: "tadpole", 3: "dartfrog", 4: "bullfrog", 5: "p
 // in the menu (3 levels). A buff only helps the frogs in its class.
 // fx: what ONE level adds (dmg / speed / range = +%, effect = stuns, slows and knockback last/push more)
 const CLASSES = {
-  sniper: { name: "Sniper", icon: "🎯", color: "#6bc5ff", frogs: ["dartfrog", "clawedfrog"],
+  sniper: { name: "Sniper", icon: "🎯", color: "#6bc5ff", frogs: ["dartfrog", "clawedfrog", "gladiator"],
     buff: "Steady Aim", per: "+10% damage", fx: { dmg: 0.10 } },
-  brawler: { name: "Close Ranger", icon: "👊", color: "#ff7b7b", frogs: ["bullfrog", "pacman", "goliath"],
+  brawler: { name: "Close Ranger", icon: "👊", color: "#ff7b7b", frogs: ["bullfrog", "pacman", "goliath", "budgett", "hairy"],
     buff: "Long Arms", per: "+8% range and +5% damage", fx: { range: 0.08, dmg: 0.05 } },
-  rapid: { name: "Rapid Fire", icon: "⚡", color: "#ffb84d", frogs: ["tadpole", "leopard", "surinam"],
+  rapid: { name: "Rapid Fire", icon: "⚡", color: "#ffb84d", frogs: ["tadpole", "leopard", "surinam", "mantella", "paradox"],
     buff: "Quick Tongue", per: "+6% attack speed", fx: { speed: 0.06 } },
-  control: { name: "Controller", icon: "🌀", color: "#c09bff", frogs: ["peeper", "woodfrog", "treefrog"],
-    buff: "Deep Croak", per: "+15% longer stuns and slows, +15% knockback", fx: { effect: 0.15 } },
-  support: { name: "Support", icon: "💚", color: "#7ddc8a", frogs: ["glassfrog", "tomatofrog"],
-    buff: "Good Vibes", per: "+10% Glass Frog glow size and +10% Tomato Frog flies", fx: { range: 0.10, dmg: 0.10 } },
-  allround: { name: "All-Rounder", icon: "⭐", color: "#ffe066", frogs: ["frog", "flyingfrog"],
+  control: { name: "Controller", icon: "🌀", color: "#c09bff", frogs: ["peeper", "woodfrog", "treefrog", "canetoad", "titicaca", "marsh"],
+    buff: "Deep Croak", per: "+15% longer stuns, slows and Weakened, +15% knockback", fx: { effect: 0.15 } },
+  support: { name: "Support", icon: "💚", color: "#7ddc8a", frogs: ["glassfrog", "tomatofrog", "coqui"],
+    buff: "Good Vibes", per: "+10% Glass Frog glow and Coquí song size, +10% Tomato Frog flies", fx: { range: 0.10, dmg: 0.10 } },
+  allround: { name: "All-Rounder", icon: "⭐", color: "#ffe066", frogs: ["frog", "flyingfrog", "firebelly", "mossy"],
     buff: "Jack of All Trades", per: "+4% damage, speed and range", fx: { dmg: 0.04, speed: 0.04, range: 0.04 } },
 };
 const CLASS_COSTS = [15, 30, 50]; // Frog Tokens for buff level 1, 2, 3
@@ -610,12 +753,13 @@ function towerStats(f) {
   const base = TOWERS[f.type];
   // Glass Frogs nearby make it attack faster (and hit harder, with Power Boost)
   const glass = base.support ? { speed: 0, power: 0 } : glassBoost(f);
+  const song = base.support ? { range: 0, power: 0 } : coquiBoost(f); // Coquí song
   const frenzy = f.frenzy > 0 ? f.frenzyMult || 0.25 : 1;
   return {
     // (Frog Power perks: +5% damage, +5% speed, +5% range)
     // (and class buffs: only for frogs in that class)
-    damage: base.damage * PATHS[1].mult[f.tiers[1]] * (1 + glass.power) * (1 + perkSum("dmg")) * (1 + classFx(f.type, "dmg")),
-    range: base.range * PATHS[2].mult[f.tiers[2]] * weatherRange(f) * (1 + perkSum("range")) * (1 + classFx(f.type, "range")),
+    damage: base.damage * PATHS[1].mult[f.tiers[1]] * (1 + glass.power + song.power) * (1 + perkSum("dmg")) * (1 + classFx(f.type, "dmg")),
+    range: base.range * PATHS[2].mult[f.tiers[2]] * weatherRange(f) * (1 + song.range) * (1 + perkSum("range")) * (1 + classFx(f.type, "range")),
     cooldown: Math.max(2, Math.round((base.cooldown * PATHS[0].mult[f.tiers[0]] * frenzy) /
       ((1 + glass.speed) * (1 + perkSum("speed")) * (1 + classFx(f.type, "speed"))))),
   };
@@ -651,6 +795,11 @@ const PATH_NAMES = {
     { name: "Fly Speed", icon: "⚡", tiers: ["Faster fly making", "Even faster flies", "Fly factory", "Fly rush"] },
     { name: "Fly Amount", icon: "🪰", tiers: ["More flies per batch", "Bigger batches", "Huge batches", "Fly feast"] },
     { name: "Harvest", icon: "🍅", tiers: ["+15 flies every round", "+35 flies every round", "+60 flies every round", "+100 flies every round"] },
+  ],
+  coqui: [
+    { name: "Louder Song", icon: "🎵", tiers: ["Frogs reach 20% farther", "Frogs reach 25% farther", "Frogs reach 30% farther", "Frogs reach 40% farther"] },
+    { name: "Power Song", icon: "💪", tiers: ["Frogs hit 6% harder", "Frogs hit 12% harder", "Frogs hit 18% harder", "Frogs hit 25% harder"] },
+    { name: "Wider Song", icon: "🎯", tiers: ["Bigger song", "Even bigger song", "Huge song", "Giant song"] },
   ],
   glassfrog: [
     { name: "Speed Boost", icon: "⚡", tiers: ["Towers 33% faster", "Towers 41% faster", "Towers 50% faster", "Towers 65% faster"] },
@@ -868,6 +1017,8 @@ const UNLOCK_COST = {
   frog: 0, lilypad: 10, tadpole: 15, peeper: 20, bullfrog: 25, woodfrog: 30,
   flyingfrog: 35, dartfrog: 40, glassfrog: 40, tomatofrog: 45, pacman: 60,
   treefrog: 30, leopard: 35, goliath: 45, surinam: 45, clawedfrog: 55,
+  firebelly: 40, mantella: 40, budgett: 45, mossy: 45, paradox: 45, coqui: 50, canetoad: 50,
+  hairy: 55, titicaca: 55, marsh: 55, gladiator: 60,
 };
 function owns(type) { return progress.owned.includes(type); }
 
@@ -1049,6 +1200,7 @@ const BOSS_TIPS = {
   5: "Fast, and it flies across corners.",
   15: "The strongest flying boss.",
   21: "Armored: it blocks 30% of all damage.",
+  29: "Armored, and its tail STINGS the closest frog every 4 seconds, so it can't attack for 2 seconds!",
   16: "ULTRA BOSS! At half health it digs a tunnel...",
 };
 let bossPopupTimer = null;
@@ -1425,6 +1577,9 @@ function refreshPanel() {
     const g = glassPower(f);
     panelRefs.stats.textContent = `Towers in range attack ${Math.round(g.speed * 100)}% faster` +
       (g.power ? ` and hit ${Math.round(g.power * 100)}% harder` : "") + ` · Range ${Math.round(s.range)}`;
+  } else if (f.type === "coqui") {
+    panelRefs.stats.textContent = `Frogs in range reach ${Math.round(COQUI_RANGE[f.tiers[0]] * 100)}% farther` +
+      (COQUI_POWER[f.tiers[1]] ? ` and hit ${Math.round(COQUI_POWER[f.tiers[1]] * 100)}% harder` : "") + ` · Range ${Math.round(s.range)}`;
   } else if (f.type === "tomatofrog") {
     panelRefs.stats.textContent = `Makes ${Math.round(s.damage)} flies every ${(s.cooldown / 60).toFixed(1)} sec during rounds` +
       (HARVEST[f.tiers[2]] ? ` · +${HARVEST[f.tiers[2]]} flies at the end of every round` : "");
@@ -1432,9 +1587,12 @@ function refreshPanel() {
     const extra = [];
     if (boost.speed) extra.push(`+${Math.round(boost.speed * 100)}% speed`);
     if (boost.power) extra.push(`+${Math.round(boost.power * 100)}% damage`);
+    const song = coquiBoost(f);
+    if (song.range) extra.push(`+${Math.round(song.range * 100)}% range`);
+    if (song.power) extra.push(`+${Math.round(song.power * 100)}% song damage`);
     panelRefs.stats.textContent =
       `Damage ${Math.round(s.damage)} · Range ${Math.round(s.range)} · ${(60 / s.cooldown).toFixed(1)} attacks/sec` +
-      (extra.length ? ` (Glass Frog: ${extra.join(", ")})` : "");
+      (extra.length ? ` (boosts: ${extra.join(", ")})` : "");
   }
   if (panelRefs.dealt) {
     panelRefs.dealt.textContent = TOWERS[f.type].support ? "" : `💥 Damage dealt this game: ${bigNum(f.dealt || 0)}`;
@@ -1478,14 +1636,23 @@ function sellTower(f) {
 let attacker = null;
 function bigNum(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "k" : String(Math.round(n)); }
 function hurt(b, dmg) {
+  if (b.weakTime > 0) dmg *= 1 + (b.weakAmt || 0); // 💔 Weakened bugs take extra damage
+  if (b.armor) dmg *= 1 - b.armor;
+  // Dung Beetle: its dung ball soaks up damage first
+  if (b.shield > 0) { const soak = Math.min(b.shield, dmg); b.shield -= soak; dmg -= soak; }
   // count only the damage that actually landed (not overkill)
   if (attacker && b.hp > 0) {
-    const real = Math.min(b.hp, dmg * (b.armor ? 1 - b.armor : 1));
+    const real = Math.min(b.hp, dmg);
     attacker.dealt = (attacker.dealt || 0) + real;
     progress.stats.damage += real;
   }
-  if (b.armor) dmg *= 1 - b.armor;
   b.hp -= dmg;
+  // Cockroach: survives the first hit that would squash it
+  if (b.hp <= 0 && BUG_TYPES[b.tier].tough && !b.survived) {
+    b.survived = true;
+    b.hp = 1;
+    effects.push({ kind: "text", text: "Not yet!", x: b.x, y: b.y - 18, color: "#ffb36b", life: 40, max: 40 });
+  }
   if (BUG_TYPES[b.tier].ultra && !b.stage2 && b.hp > 0 && b.hp <= b.maxHp / 2) digTunnel(b);
 }
 
@@ -1511,7 +1678,7 @@ function bugsInRange(f, range) {
 const TARGET_MODES = { first: "First", last: "Last", strong: "Strongest", close: "Closest" };
 const TARGET_ORDER = ["first", "last", "strong", "close"];
 // Frogs that hit everything around them (or don't attack) don't need a target setting
-const NO_TARGETING = ["glassfrog", "tomatofrog", "peeper", "woodfrog", "goliath", "pacman"];
+const NO_TARGETING = ["glassfrog", "tomatofrog", "peeper", "woodfrog", "goliath", "pacman", "canetoad", "titicaca", "coqui"];
 function targetMode(f) { return f.targeting || (f.type === "dartfrog" ? "strong" : "first"); }
 // How far along the path a bug is (bigger = closer to the goal)
 function progressOf(b) {
@@ -1677,6 +1844,105 @@ const ABILITIES = {
   ],
 };
 
+// Super attacks for the big update's frogs
+Object.assign(ABILITIES, {
+  gladiator: [
+    { name: "Spear Storm", info: "4x attack speed for 5 seconds", frenzy: [0.25, 300] },
+    { name: "Piercing Lance", info: "A giant lance through the toughest bug: 12x damage to EVERY bug in a long, wide line", reach: 1.5,
+      run(f, s, t) {
+        const b = toughest(t), ang = Math.atan2(b.y - f.y, b.x - f.x);
+        for (const x of lineHits(f, ang, s.range * 1.6, TOWERS.gladiator.width * 2)) hurt(x, s.damage * 12);
+        lance(f, ang, s.range * 1.6, "#ffb347", 30);
+      } },
+    { name: "Spear Wheel", info: "Throws 8 spears in every direction: 4x damage to every bug they pass through",
+      run(f, s) {
+        for (let i = 0; i < 8; i++) {
+          const ang = (i / 8) * Math.PI * 2;
+          for (const x of lineHits(f, ang, s.range, TOWERS.gladiator.width)) hurt(x, s.damage * 4);
+          lance(f, ang, s.range, "#ffd27a", 24);
+        }
+      } },
+  ],
+  firebelly: [
+    { name: "Fire Frenzy", info: "4x attack speed for 5 seconds", frenzy: [0.25, 300] },
+    { name: "Fireball", info: "A huge fireball on the toughest bug: 15x damage, and everything near it catches fire",
+      run(f, s, t) {
+        const b = toughest(t);
+        hurt(b, s.damage * 15);
+        for (const x of bugs) if (canSee(x) && Math.hypot(x.x - b.x, x.y - b.y) < 70) burn(x, s.damage * 12, 240);
+        beam(f, b, "#ff7a2a"); ring(b.x, b.y, 70, "#ff7a2a");
+      } },
+    { name: "Inferno", info: "Sets every bug in range on fire (10x damage over 4 seconds)", reach: 1.2,
+      run(f, s, t) { for (const b of t) burn(b, s.damage * 10, 240); ring(f.x, f.y, s.range * 1.2, "#ff7a2a", 40); } },
+  ],
+  mantella: [
+    { name: "Toxic Rush", info: "5x attack speed for 5 seconds", frenzy: [0.2, 300] },
+    { name: "Venom Volley", info: "Hits every bug in range for 6x damage and Weakens them by 30%",
+      run(f, s, t) { for (const b of t) { hurt(b, s.damage * 6); weaken(b, 0.3, 240); } ring(f.x, f.y, s.range, "#f2a31b", 35); } },
+    { name: "Golden Curse", info: "Every bug in a big area is Weakened by 60% for 5 seconds", reach: 2,
+      run(f, s, t) { for (const b of t) weaken(b, 0.6, 300); ring(f.x, f.y, s.range * 2, "#c77dff", 45); } },
+  ],
+  canetoad: [
+    { name: "Toxic Pulse", info: "4x pulse speed for 5 seconds", frenzy: [0.25, 300] },
+    { name: "Toxic Burst", info: "8x damage to every bug in a big area, and Weakens them by 40%", reach: 2,
+      run(f, s, t) { for (const b of t) { hurt(b, s.damage * 8); weaken(b, 0.4, 240); } ring(f.x, f.y, s.range * 2, "#9acd32", 45); } },
+    { name: "Bufo Cloud", info: "A giant toxic cloud: every bug in a huge area is Weakened by 50% for 6 seconds", reach: 3,
+      run(f, s, t) { for (const b of t) weaken(b, 0.5, 360); ring(f.x, f.y, s.range * 3, "#9acd32", 50); } },
+  ],
+  budgett: [
+    { name: "Screaming Frenzy", info: "5x bite speed for 5 seconds", frenzy: [0.2, 300] },
+    { name: "Mega Bite", info: "One huge bite on the toughest bug in range (30x damage)",
+      run(f, s, t) { const b = toughest(t); hurt(b, s.damage * 30); f.tongue = { x: b.x, y: b.y, life: 12 }; ring(b.x, b.y, 40, "#c0392b"); } },
+    { name: "Battle Scream", info: "A terrifying scream: stuns every bug in a huge area for 1.5 seconds and Weakens them by 30%", reach: 3,
+      run(f, s, t) { for (const b of t) { stun(b, 90); weaken(b, 0.3, 240); } ring(f.x, f.y, s.range * 3, "#ffe9a8", 45); } },
+  ],
+  hairy: [
+    { name: "Claw Frenzy", info: "4x slash speed for 5 seconds", frenzy: [0.25, 300] },
+    { name: "Bone Claws", info: "Rips the toughest bug's armor off for good and hits it for 20x damage", reach: 1.5,
+      run(f, s, t) {
+        const b = toughest(t);
+        if (!BUG_TYPES[b.tier].ultra) b.armor = 0;
+        hurt(b, s.damage * 20); beam(f, b, "#ddd"); ring(b.x, b.y, 35, "#ddd");
+      } },
+    { name: "Wolverine Rage", info: "Slashes every bug in a big area for 10x damage", reach: 2,
+      run(f, s, t) { for (const b of t) hurt(b, s.damage * 10); ring(f.x, f.y, s.range * 2, "#8a6a4a", 40); } },
+  ],
+  mossy: [
+    { name: "Hidden Frenzy", info: "4x attack speed for 5 seconds", frenzy: [0.25, 300] },
+    { name: "Surprise Attack", info: "Ambushes every bug in range for 8x damage",
+      run(f, s, t) { for (const b of t) { hurt(b, s.damage * 8); ring(b.x, b.y, 16, "#5b8a3a", 15); } } },
+    { name: "Moss Trap", info: "Every bug in a big area gets stuck for 2 seconds and Weakened by 25%", reach: 1.6,
+      run(f, s, t) { for (const b of t) { stun(b, 120); weaken(b, 0.25, 240); } ring(f.x, f.y, s.range * 1.6, "#5b8a3a", 45); } },
+  ],
+  paradox: [
+    { name: "Bubble Burst", info: "5x attack speed for 5 seconds", frenzy: [0.2, 300] },
+    { name: "Giant Tadpole", info: "A giant bubble on the toughest bug: 25x damage",
+      run(f, s, t) { const b = toughest(t); hurt(b, s.damage * 25); beam(f, b, "#aee3ff"); ring(b.x, b.y, 45, "#aee3ff"); } },
+    { name: "Growth Spurt", info: "Hits every bug in range: 3x damage close up, up to 6x far away",
+      run(f, s, t) {
+        for (const b of t) { hurt(b, s.damage * (3 + 3 * Math.min(1, Math.hypot(b.x - f.x, b.y - f.y) / s.range))); ring(b.x, b.y, 14, "#aee3ff", 15); }
+      } },
+  ],
+  titicaca: [
+    { name: "Whirlpool Frenzy", info: "4x whirlpool speed for 5 seconds", frenzy: [0.25, 300] },
+    { name: "Maelstrom", info: "A huge whirlpool: 6x damage to every bug in a big area, and drags them far back", reach: 1.5,
+      run(f, s, t) { for (const b of t) { hurt(b, s.damage * 6); pushBack(b, isBoss(b) ? 40 : 120); } ring(f.x, f.y, s.range * 1.5, "#4fb3d9", 45); } },
+    { name: "Deep Current", info: "Every bug in a huge area moves 70% slower for 5 seconds", reach: 2.5,
+      run(f, s, t) { for (const b of t) { b.slow = 300; b.slowAmt = 0.7; } ring(f.x, f.y, s.range * 2.5, "#4fb3d9", 50); } },
+  ],
+  marsh: [
+    { name: "Mud Barrage", info: "4x attack speed for 5 seconds", frenzy: [0.25, 300] },
+    { name: "Mud Bomb", info: "A giant mud bomb on the toughest bug: 20x splash damage and Weakens by 40%",
+      run(f, s, t) {
+        const b = toughest(t);
+        for (const x of bugs) if (canSee(x) && Math.hypot(x.x - b.x, x.y - b.y) < 90) { hurt(x, s.damage * 20); weaken(x, 0.4, 240); }
+        ring(b.x, b.y, 90, "#7a5a3a", 40);
+      } },
+    { name: "Swamp Flood", info: "Every bug in range takes 4x damage, is slowed and Weakened by 30%", reach: 1.2,
+      run(f, s, t) { for (const b of t) { hurt(b, s.damage * 4); weaken(b, 0.3, 240); b.slow = 180; b.slowAmt = 0.4; } ring(f.x, f.y, s.range * 1.2, "#5e8f55", 45); } },
+  ],
+});
+
 // The super attack a frog has unlocked (or null)
 function abilityOf(f) {
   const p = abilityPath(f);
@@ -1796,6 +2062,7 @@ function spawnBug(tier) {
     // Invisible bugs (and, at Night, 1 in 10 regular bugs) need a Glass Frog to be seen
     invisible: !!t.invisible || (!!activeWeather.night && !t.boss && Math.random() < 0.1),
     armor: t.armor || 0, // armored bugs (Pill Bug, Hercules Beetle) take less damage
+    shield: t.shield ? t.hp * scale * t.shield : 0, shieldMax: t.shield ? t.hp * scale * t.shield : 0, // Dung Beetle's ball
   });
   progress.seen[tier] = true; // for the Bug Book
   if (t.ultra) showMsg(`💀 ULTRA BOSS: the ${t.name} is here! Get it to half health and watch out...`);
@@ -1838,6 +2105,7 @@ function step() {
 
   // Move bugs along their route (the path, or a straight line for some flyers)
   for (const b of bugs) {
+    if (BUG_TYPES[b.tier].sting) scorpionSting(b); // Emperor Scorpion's tail
     // Stunned bugs can't move
     if (b.stun > 0) { b.stun--; continue; }
     // Wood Frog frost slows bugs down for a while
@@ -1892,10 +2160,11 @@ function step() {
     if (f.tongue) { f.tongue.life--; if (f.tongue.life <= 0) f.tongue = null; }
     if (f.croak > 0) f.croak--;
     if (f.stinky > 0) { f.stinky--; continue; } // coughing in a stink cloud: can't attack
+    if (f.stung > 0) { f.stung--; continue; }   // stung by the Emperor Scorpion: dazed
     if (f.cooldown > 0) { f.cooldown--; continue; }
 
     // Glass Frog doesn't attack: its boost is worked out in towerStats
-    if (f.type === "glassfrog") continue;
+    if (f.type === "glassfrog" || f.type === "coqui") continue;
 
     // Tomato Frog: makes flies every few seconds
     if (f.type === "tomatofrog") {
@@ -2014,6 +2283,101 @@ function step() {
       continue;
     }
 
+    // Gladiator Frog: a spear in a straight line hits EVERY bug in that line
+    if (f.type === "gladiator") {
+      const stats = towerStats(f);
+      const inReach = bugsInRange(f, stats.range);
+      if (inReach.length) {
+        const aim = pickTarget(f, inReach);
+        f.angle = Math.atan2(aim.y - f.y, aim.x - f.x);
+        const hit = lineHits(f, f.angle, stats.range, TOWERS.gladiator.width);
+        for (const b of hit) hurt(b, stats.damage);
+        if (hit.length >= 5) progress.flags.lance5 = true;
+        lance(f, f.angle, stats.range);
+        f.cooldown = stats.cooldown;
+        f.croak = 10;
+        sfx("hit");
+      }
+      continue;
+    }
+
+    // Cane Toad: a toxic cloud hurts and Weakens every bug in range
+    if (f.type === "canetoad") {
+      const stats = towerStats(f);
+      const hit = bugsInRange(f, stats.range);
+      if (hit.length) {
+        const frames = Math.round(TOWERS.canetoad.weakFrames * (1 + classFx("canetoad", "effect")));
+        for (const b of hit) { hurt(b, stats.damage); weaken(b, TOWERS.canetoad.weak, frames); }
+        f.cooldown = stats.cooldown;
+        f.croak = 14;
+        effects.push({ kind: "ring", x: f.x, y: f.y, from: 10, to: stats.range, color: "#9acd32", life: 22, max: 22 });
+      }
+      continue;
+    }
+
+    // Titicaca Water Frog: a whirlpool drags back and slows every bug in range
+    if (f.type === "titicaca") {
+      const stats = towerStats(f);
+      const hit = bugsInRange(f, stats.range);
+      if (hit.length) {
+        const T = TOWERS.titicaca, more = 1 + classFx("titicaca", "effect");
+        for (const b of hit) {
+          hurt(b, stats.damage);
+          const had = b.slow > 0 ? b.slowAmt || 0 : 0;
+          b.slow = Math.max(b.slow || 0, Math.round(T.slowFrames * more));
+          b.slowAmt = Math.max(had, T.slow);
+          pushBack(b, (isBoss(b) ? T.pull / 3 : T.pull) * more);
+        }
+        f.cooldown = stats.cooldown;
+        f.croak = 14;
+        effects.push({ kind: "ring", x: f.x, y: f.y, from: stats.range, to: 10, color: "#4fb3d9", life: 22, max: 22 });
+      }
+      continue;
+    }
+
+    // Hairy Frog: claw slash hits up to 3 bugs
+    if (f.type === "hairy") {
+      const stats = towerStats(f);
+      const targets = sortByTarget(f, bugsInRange(f, stats.range)).slice(0, TOWERS.hairy.cleave);
+      if (targets.length) {
+        f.angle = Math.atan2(targets[0].y - f.y, targets[0].x - f.x);
+        for (const b of targets) { hurt(b, stats.damage); effects.push({ kind: "beam", x: f.x, y: f.y, x2: b.x, y2: b.y, color: "#e8e0d0", life: 8, max: 8 }); }
+        f.cooldown = stats.cooldown;
+        f.croak = 10;
+        sfx("hit");
+      }
+      continue;
+    }
+
+    // Paradoxical Frog: bubbles that grow as they fly (farther bug = more damage, up to 2x)
+    if (f.type === "paradox") {
+      const stats = towerStats(f);
+      const inReach = bugsInRange(f, stats.range);
+      if (inReach.length) {
+        const best = pickTarget(f, inReach);
+        f.angle = Math.atan2(best.y - f.y, best.x - f.x);
+        const grow = 1 + Math.min(1, Math.hypot(best.x - f.x, best.y - f.y) / stats.range);
+        shots.push({ kind: "water", x: f.x, y: f.y, target: best, damage: stats.damage * grow, speed: 9, src: f, big: grow });
+        f.cooldown = stats.cooldown;
+      }
+      continue;
+    }
+
+    // Marsh Frog: lobs a mud bomb that splashes and Weakens
+    if (f.type === "marsh") {
+      const stats = towerStats(f);
+      const inReach = bugsInRange(f, stats.range);
+      if (inReach.length) {
+        const best = pickTarget(f, inReach);
+        f.angle = Math.atan2(best.y - f.y, best.x - f.x);
+        const T = TOWERS.marsh;
+        shots.push({ kind: "geyser", x: f.x, y: f.y, target: best, damage: stats.damage, speed: 7, src: f, sx: f.x, sy: f.y,
+          splash: T.splash, weak: T.weak, weakFrames: Math.round(T.weakFrames * (1 + classFx("marsh", "effect"))), mud: true });
+        f.cooldown = stats.cooldown;
+      }
+      continue;
+    }
+
     const stats = towerStats(f);
     // Each frog picks its target by its targeting setting (First, Last, Strongest or Closest)
     const inReach = bugsInRange(f, stats.range);
@@ -2040,7 +2404,17 @@ function step() {
             effects.push({ kind: "text", text: "CRIT!", x: best.x, y: best.y - 16, color: "#ffe066", life: 25, max: 25 });
           }
         }
+        // Mossy Frog: its first hit on each bug is an ambush
+        if (f.type === "mossy" && !best.ambushed) {
+          best.ambushed = true;
+          dmg *= TOWERS.mossy.ambush;
+          effects.push({ kind: "text", text: "AMBUSH!", x: best.x, y: best.y - 16, color: "#a8d070", life: 25, max: 25 });
+        }
+        // Budgett's Frog: bites twice as hard on bugs below half health
+        if (f.type === "budgett" && best.hp < best.maxHp / 2) dmg *= 2;
         hurt(best, dmg);
+        if (f.type === "firebelly") burn(best, dmg * TOWERS.firebelly.burn, 180);
+        if (f.type === "mantella") weaken(best, TOWERS.mantella.weak, TOWERS.mantella.weakFrames);
         // Red-eyed Tree Frog: startles the bug backwards
         if (f.type === "treefrog") pushBack(best, (isBoss(best) ? TOWERS.treefrog.knockback / 3 : TOWERS.treefrog.knockback) * (1 + classFx("treefrog", "effect")));
         f.tongue = { x: best.x, y: best.y, life: 8 };
@@ -2071,6 +2445,16 @@ function step() {
       if (b.poisonTime === 0) b.poisonDmg = 0;
     }
   }
+  // 🔥 Burning bugs take fire damage, and 💔 Weakened wears off
+  for (const b of bugs) {
+    if (b.burnTime > 0) {
+      attacker = b.burnSrc || null;
+      hurt(b, b.burnDmg);
+      attacker = null;
+      if (--b.burnTime === 0) b.burnDmg = 0;
+    }
+    if (b.weakTime > 0) b.weakTime--;
+  }
 
   // Move water drops and darts toward their bug (each one remembers which frog shot it)
   for (const s of shots) {
@@ -2081,11 +2465,18 @@ function step() {
       attacker = s.src || null;
       sfx("splash");
       if (s.kind === "geyser") {
-        // splash: every bug near the landing spot gets hit
-        for (const x of bugs) if (x !== b && x.hp > 0 && canSee(x) && Math.hypot(x.x - b.x, x.y - b.y) <= TOWERS.clawedfrog.splash) hurt(x, s.damage);
-        effects.push({ kind: "ring", x: b.x, y: b.y, from: 6, to: TOWERS.clawedfrog.splash, color: "#6bc5ff", life: 16, max: 16 });
+        // splash: every bug near the landing spot gets hit (Marsh Frog mud also Weakens them)
+        const radius = s.splash || TOWERS.clawedfrog.splash;
+        for (const x of bugs) {
+          if (x !== b && x.hp > 0 && canSee(x) && Math.hypot(x.x - b.x, x.y - b.y) <= radius) {
+            hurt(x, s.damage);
+            if (s.weak) weaken(x, s.weak, s.weakFrames);
+          }
+        }
+        effects.push({ kind: "ring", x: b.x, y: b.y, from: 6, to: radius, color: s.mud ? "#7a5a3a" : "#6bc5ff", life: 16, max: 16 });
       }
       hurt(b, s.damage);
+      if (s.weak) weaken(b, s.weak, s.weakFrames);
       s.done = true;
       if (s.kind === "dart") {
         // Poison: keep the stronger poison if the bug is already poisoned
@@ -2108,6 +2499,12 @@ function step() {
   const hatched = [];
   bugs = bugs.filter((b) => {
     if (b.hp <= 0) {
+      if (b.burnTime > 0) {
+        // 🔥 the fire spreads to the bugs right next to it
+        attacker = b.burnSrc || null;
+        for (const x of bugs) if (x !== b && x.hp > 0 && Math.hypot(x.x - b.x, x.y - b.y) < 45) burn(x, b.burnDmg * 120, 120);
+        attacker = null;
+      }
       const sp = BUG_TYPES[b.tier].splits;
       if (sp) {
         // Wolf Spider: her babies scatter and keep going along the same path
@@ -2732,8 +3129,9 @@ function drawFrog(f) {
   // Body (bullfrogs are bigger with a pale yellow throat, peepers are small)
   ctx.fillStyle = towerColor(f);
   ctx.beginPath();
-  const bodyW = bull ? 18 : peep ? 12 : pac ? 19 : tomato ? 16 : goli ? 21 : f.type === "surinam" ? 17 : 15;
-  const bodyH = bull ? 16 : peep ? 10 : pac ? 18 : tomato ? 16 : goli ? 19 : f.type === "surinam" ? 15 : 13;
+  const sz = { canetoad: [19, 17], budgett: [18, 15], hairy: [17, 15], coqui: [11, 9], mantella: [11, 9], titicaca: [18, 14], marsh: [16, 14] }[f.type];
+  const bodyW = sz ? sz[0] : bull ? 18 : peep ? 12 : pac ? 19 : tomato ? 16 : goli ? 21 : f.type === "surinam" ? 17 : 15;
+  const bodyH = sz ? sz[1] : bull ? 16 : peep ? 10 : pac ? 18 : tomato ? 16 : goli ? 19 : f.type === "surinam" ? 15 : 13;
   ctx.ellipse(0, 0, bodyW, bodyH, 0, 0, Math.PI * 2);
   ctx.fill();
   if (pac) {
@@ -2851,6 +3249,95 @@ function drawFrog(f) {
     }
     ctx.fillStyle = "#6d4c2f";
     ctx.fillRect(12, -2, 12, 4);
+  }
+
+  // ----- the big update's frogs -----
+  if (f.type === "gladiator") {
+    // carries a long spear with a shiny tip
+    ctx.strokeStyle = "#6d4c2f"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-10, 11); ctx.lineTo(22, 11); ctx.stroke();
+    ctx.fillStyle = "#dfe6ee";
+    ctx.beginPath(); ctx.moveTo(22, 7); ctx.lineTo(31, 11); ctx.lineTo(22, 15); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.fillStyle = "rgba(60,35,10,0.35)"; // dark back stripes
+    ctx.fillRect(-11, -3, 14, 2); ctx.fillRect(-11, 2, 14, 2);
+  }
+  if (f.type === "firebelly") {
+    // fiery orange belly showing at the sides, and black blotches on a green back
+    ctx.fillStyle = "#ff5a1f";
+    for (const side of [-1, 1]) { ctx.beginPath(); ctx.ellipse(-1, side * 10, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = "#1a1a1a";
+    for (const [sx, sy] of [[-7, -4], [-2, 4], [-10, 3], [2, -3]]) { ctx.beginPath(); ctx.arc(sx, sy, 2.2, 0, Math.PI * 2); ctx.fill(); }
+    if (f.croak > 0) { ctx.fillStyle = "#ffb347"; ctx.beginPath(); ctx.arc(15, 0, 3, 0, Math.PI * 2); ctx.fill(); }
+  }
+  if (f.type === "mantella") {
+    // tiny shiny golden frog with dark legs
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath(); ctx.ellipse(-3, -3, 4, 2, -0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#5a2a0a"; ctx.lineWidth = 2;
+    for (const side of [-1, 1]) { ctx.beginPath(); ctx.moveTo(-6, side * 7); ctx.lineTo(-12, side * 12); ctx.stroke(); }
+    ctx.lineWidth = 1;
+  }
+  if (f.type === "canetoad") {
+    // big poison glands behind the eyes, and warts
+    ctx.fillStyle = "#c9a86a";
+    for (const side of [-1, 1]) { ctx.beginPath(); ctx.ellipse(-2, side * 10, 7, 4, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = "rgba(50,35,15,0.45)";
+    for (const [sx, sy] of [[-12, -5], [-9, 6], [-14, 1], [-6, 0]]) { ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI * 2); ctx.fill(); }
+    if (f.croak > 0) { ctx.fillStyle = "rgba(154,205,50,0.35)"; ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2); ctx.fill(); }
+  }
+  if (f.type === "budgett") {
+    // a HUGE wide mouth that snaps open when it bites
+    ctx.fillStyle = "#3a1a10";
+    ctx.beginPath(); ctx.ellipse(13, 0, f.croak > 0 ? 6 : 2.5, 13, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,200,120,0.35)"; // pale belly stripe
+    ctx.fillRect(-14, -2, 20, 4);
+  }
+  if (f.type === "hairy") {
+    // hairy flanks and sharp white claws
+    ctx.strokeStyle = "#2a1f15"; ctx.lineWidth = 1;
+    for (let i = -10; i <= 4; i += 3) for (const side of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(i, side * 13); ctx.lineTo(i - 2, side * 18); ctx.stroke();
+    }
+    ctx.strokeStyle = "#f2efe6"; ctx.lineWidth = 2;
+    for (const side of [-1, 1]) { ctx.beginPath(); ctx.moveTo(10, side * 11); ctx.lineTo(17, side * 15); ctx.stroke(); }
+    ctx.lineWidth = 1;
+  }
+  if (f.type === "coqui") {
+    // little tan frog with a dark "W" on its back and big toe pads
+    ctx.strokeStyle = "#6b4a24"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-8, -5); ctx.lineTo(-4, 0); ctx.lineTo(-6, 0); ctx.lineTo(-2, 5); ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.fillStyle = "#e8cfa0";
+    for (const side of [-1, 1]) { ctx.beginPath(); ctx.arc(8, side * 11, 2.5, 0, Math.PI * 2); ctx.fill(); }
+  }
+  if (f.type === "mossy") {
+    // bumpy, mossy camouflage
+    for (const [sx, sy, c] of [[-8, -6, "#8fbf5a"], [-3, 6, "#2f4a1a"], [-12, 2, "#2f4a1a"], [1, -5, "#a8d070"], [-6, 1, "#8fbf5a"], [3, 5, "#2f4a1a"]]) {
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(sx, sy, 2.6, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  if (f.type === "paradox") {
+    // slimy water frog with dark stripes down its back
+    ctx.strokeStyle = "rgba(30,45,15,0.6)"; ctx.lineWidth = 2;
+    for (const side of [-1, 1]) { ctx.beginPath(); ctx.moveTo(-13, side * 4); ctx.lineTo(6, side * 4); ctx.stroke(); }
+    ctx.lineWidth = 1;
+  }
+  if (f.type === "titicaca") {
+    // baggy, saggy skin folds (to breathe underwater)
+    ctx.strokeStyle = "rgba(35,38,25,0.55)"; ctx.lineWidth = 1.5;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      for (let i = -14; i <= 8; i += 2) ctx.lineTo(i, side * (11 + Math.sin(i) * 2));
+      ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+  }
+  if (f.type === "marsh") {
+    // pale stripe down the middle and dark spots
+    ctx.fillStyle = "#c8e6a0"; ctx.fillRect(-13, -1.5, 18, 3);
+    ctx.fillStyle = "#2f4a25";
+    for (const [sx, sy] of [[-8, -6], [-3, 7], [-11, 5], [0, -6]]) { ctx.beginPath(); ctx.arc(sx, sy, 2.2, 0, Math.PI * 2); ctx.fill(); }
   }
 
   // Eyes (facing the target). Bullfrogs have golden eyes set wider apart.
@@ -3306,6 +3793,95 @@ function drawStun(b) {
 }
 
 // Poisoned look: a green glow with little bubbles floating up
+// 🔥 Burning bugs have little flickering flames
+function drawBurn(b) {
+  const s = BUG_TYPES[b.tier].size;
+  const t = performance.now() / 120;
+  for (let i = 0; i < 3; i++) {
+    const fx = b.x + (i - 1) * s * 0.6, h = 6 + Math.sin(t + i * 2) * 3;
+    ctx.fillStyle = i === 1 ? "#ffd23a" : "#ff6a1a";
+    ctx.beginPath();
+    ctx.moveTo(fx - 3, b.y - s * 0.3);
+    ctx.quadraticCurveTo(fx - 2, b.y - s * 0.3 - h, fx, b.y - s * 0.3 - h - 4);
+    ctx.quadraticCurveTo(fx + 2, b.y - s * 0.3 - h, fx + 3, b.y - s * 0.3);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+// 💔 Weakened bugs have a cracked purple ring around them
+function drawWeak(b) {
+  const r = BUG_TYPES[b.tier].size + 5;
+  ctx.strokeStyle = "#c77dff";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 4]);
+  ctx.lineDashOffset = -performance.now() / 60;
+  ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1;
+}
+// Frogs stung by the Emperor Scorpion are dazed for a moment
+function drawStung(f) {
+  const t = performance.now() / 200;
+  ctx.fillStyle = "#ffe066";
+  for (let i = 0; i < 3; i++) {
+    const a = t + (i * Math.PI * 2) / 3;
+    ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * 14, f.y - 20 + Math.sin(a) * 4, 2.5, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// BOSS: Emperor Scorpion. Armored, and its tail stings nearby frogs so they can't attack for a bit.
+function drawScorpion(b) {
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.rotate(b.angle);
+  ctx.scale(1.3, 1.3);
+  const wig = Math.sin(b.wobble * 0.6) * 3;
+  // 8 legs
+  ctx.strokeStyle = "#0e0e14";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 4; i++) for (const side of [-1, 1]) {
+    ctx.beginPath(); ctx.moveTo(-6 + i * 5, 0); ctx.lineTo(-10 + i * 6 + (i % 2 ? wig : -wig), side * 18); ctx.stroke();
+  }
+  // big pincers in front
+  ctx.fillStyle = "#1a1a26";
+  for (const side of [-1, 1]) {
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(8, side * 5); ctx.lineTo(18, side * 12); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(23, side * 13, 6, 4, side * 0.3, 0, Math.PI * 2); ctx.fill();
+  }
+  // body
+  ctx.fillStyle = "#1c1c2a";
+  ctx.beginPath(); ctx.ellipse(0, 0, 13, 9, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#3a3a52"; ctx.lineWidth = 1;
+  for (let i = -8; i <= 6; i += 4) { ctx.beginPath(); ctx.moveTo(i, -8); ctx.lineTo(i, 8); ctx.stroke(); }
+  // tail curling up over its back, with the stinger
+  ctx.strokeStyle = "#22222f"; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(-12, 0); ctx.quadraticCurveTo(-30, 0, -22, -14); ctx.quadraticCurveTo(-14, -20, -6, -12); ctx.stroke();
+  ctx.fillStyle = b.stingFlash > 0 ? "#ffe066" : "#8a3a1a";
+  ctx.beginPath(); ctx.moveTo(-6, -12); ctx.lineTo(0, -8); ctx.lineTo(-4, -16); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.restore();
+  drawBossHealth(b, 38);
+}
+// The Emperor Scorpion stings the closest frog in reach every few seconds
+function scorpionSting(b) {
+  const st = BUG_TYPES[b.tier].sting;
+  if (b.stingFlash > 0) b.stingFlash--;
+  b.stingT = (b.stingT === undefined ? st.every / 2 : b.stingT) - 1;
+  if (b.stingT > 0) return;
+  b.stingT = st.every;
+  let best = null, bd = st.range;
+  for (const f of frogs) {
+    const d = Math.hypot(f.x - b.x, f.y - b.y);
+    if (d < bd && !(f.stung > 0)) { bd = d; best = f; }
+  }
+  if (!best) return;
+  best.stung = st.frames;
+  b.stingFlash = 20;
+  effects.push({ kind: "beam", x: b.x, y: b.y, x2: best.x, y2: best.y, color: "#ffe066", life: 14, max: 14 });
+  effects.push({ kind: "text", text: "STUNG!", x: best.x, y: best.y - 22, color: "#ffe066", life: 40, max: 40 });
+}
+
 function drawPoison(b) {
   const size = BUG_TYPES[b.tier].size + 4;
   const t = performance.now() / 300;
@@ -3367,6 +3943,7 @@ function drawBug(b) {
   if (b.tier === 16) return drawMoleCricket(b);
   if (b.tier === 21) return drawHercules(b);
   if (b.tier === 22) return drawWolfSpider(b);
+  if (b.tier === 29) return drawScorpion(b);
 
   const s = t.size;
   let x = b.x, y = b.y;
@@ -3561,6 +4138,63 @@ function drawBug(b) {
       ctx.lineWidth = 1;
       break;
     }
+    case "firefly": {
+      // dark body with a glowing tail light
+      drawWings(b, s, "rgba(230,230,200,0.55)");
+      const glow = 0.5 + 0.5 * Math.sin(b.wobble * 0.4);
+      ctx.fillStyle = `rgba(255,240,90,${0.25 + glow * 0.35})`;
+      ctx.beginPath(); ctx.arc(x, y + s * 0.6, s + 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = t.color;
+      ctx.beginPath(); ctx.ellipse(x, y - 2, s * 0.5, s * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+      circle(x, y + s * 0.6, s * 0.45, "#fff36a");
+      break;
+    }
+    case "dragonfly": {
+      // four long see-through wings and a long thin body
+      ctx.fillStyle = "rgba(190,230,255,0.55)";
+      for (const side of [-1, 1]) for (const dy of [-3, 3]) {
+        ctx.beginPath(); ctx.ellipse(x + side * 13, y + dy, 13, 3.5 + Math.sin(b.wobble * 2) * 1.5, side * 0.15, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = t.color;
+      ctx.beginPath(); ctx.ellipse(x, y + 6, 2.5, 13, 0, 0, Math.PI * 2); ctx.fill();
+      circle(x, y - 8, 4.5, "#1a6b8a");
+      break;
+    }
+    case "termite": {
+      // tiny pale termite with a big orange head
+      drawLegs(b, s, "#a08a6a", 3, 4);
+      circle(x, y + 3, s * 0.8, t.color);
+      circle(x, y - 1, s * 0.7, t.color);
+      circle(x, y - s, s * 0.7, "#d98a3a");
+      break;
+    }
+    case "dung": {
+      // a beetle pushing a ball of dung that soaks up damage
+      drawLegs(b, s, "#1a1a1a", 3, 6);
+      ctx.fillStyle = t.color;
+      ctx.beginPath(); ctx.ellipse(x, y + 4, s * 0.8, s * 0.9, 0, 0, Math.PI * 2); ctx.fill();
+      if (b.shield > 0) {
+        const r = 5 + 9 * (b.shield / (b.shieldMax || 1));
+        circle(x, y - s - r + 4, r, "#7a5a32");
+        circle(x - r * 0.3, y - s - r * 1.2 + 4, r * 0.3, "rgba(255,255,255,0.15)");
+      }
+      break;
+    }
+    case "roach": {
+      // flat brown cockroach with very long antennae
+      ctx.strokeStyle = "#3a2410";
+      ctx.beginPath();
+      ctx.moveTo(x - 2, y - s); ctx.quadraticCurveTo(x - 8, y - s - 14, x - 14, y - s - 10);
+      ctx.moveTo(x + 2, y - s); ctx.quadraticCurveTo(x + 8, y - s - 14, x + 14, y - s - 10);
+      ctx.stroke();
+      drawLegs(b, s, "#3a2410", 3, 6);
+      ctx.fillStyle = t.color;
+      ctx.beginPath(); ctx.ellipse(x, y, s * 0.75, s * 1.05, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.3)";
+      ctx.beginPath(); ctx.moveTo(x, y - s * 0.6); ctx.lineTo(x, y + s); ctx.stroke();
+      if (b.survived) circle(x + s, y - s, 3, "#ff6b6b"); // it's hanging on by a thread!
+      break;
+    }
     case "rhino":
       // Big dark beetle with a curved horn
       drawLegs(b, s, "#1a120c", 3, 8);
@@ -3644,7 +4278,10 @@ function draw() {
   for (const b of bugs) if (b.poisonTime > 0) drawPoison(b);
   for (const b of bugs) if (b.stun > 0) drawStun(b);
   for (const b of bugs) if (b.slow > 0) drawFrost(b);
+  for (const b of bugs) if (b.burnTime > 0) drawBurn(b);
+  for (const b of bugs) if (b.weakTime > 0) drawWeak(b);
   for (const f of frogs) drawFrog(f);
+  for (const f of frogs) if (f.stung > 0) drawStung(f);
   // green stink fumes over frogs that are stuck coughing
   for (const f of frogs) {
     if (!(f.stinky > 0)) continue;
@@ -3664,8 +4301,8 @@ function draw() {
       const total = Math.hypot(s.target.x - s.sx, s.target.y - s.sy) || 1;
       const left = Math.hypot(s.target.x - s.x, s.target.y - s.y);
       const lift = Math.sin(Math.PI * Math.min(1, Math.max(0, 1 - left / total))) * 30;
-      ctx.fillStyle = "#6bc5ff";
-      ctx.strokeStyle = "#1e6fb8";
+      ctx.fillStyle = s.mud ? "#7a5a3a" : "#6bc5ff";
+      ctx.strokeStyle = s.mud ? "#4a3520" : "#1e6fb8";
       ctx.beginPath();
       ctx.arc(s.x, s.y - lift, 7, 0, Math.PI * 2);
       ctx.fill();
@@ -3752,6 +4389,9 @@ drawShopIcon("iconWood", "woodfrog");
 drawShopIcon("iconPacman", "pacman");
 drawShopIcon("iconGlass", "glassfrog");
 drawShopIcon("iconTomato", "tomatofrog");
+for (const type of ["gladiator", "firebelly", "mantella", "canetoad", "budgett", "hairy", "coqui", "mossy", "paradox", "titicaca", "marsh"]) {
+  drawShopIcon("icon" + SHOP_BUTTONS[type].slice(4), type);
+}
 for (const [id, type] of [["iconGoliath", "goliath"], ["iconLeopard", "leopard"], ["iconTree", "treefrog"], ["iconClawed", "clawedfrog"], ["iconSurinam", "surinam"]]) drawShopIcon(id, type);
 
 // Draws a whole map, shrunk down, for the menu cards
@@ -4043,6 +4683,7 @@ const ACHIEVEMENTS = [
   { id: "free60", name: "Endless Frog", info: "Reach round 60 in Freeplay", reward: 40, done: () => progress.flags.free60 },
   { id: "rush10", name: "Boss Rusher", info: "Reach round 10 in Boss Rush", reward: 30, done: () => progress.flags.rush10 },
   { id: "collect", name: "Frog Collector", info: "Unlock 10 frogs", reward: 20, done: () => progress.owned.length >= 10 },
+  { id: "lance", name: "Frog Kebab", info: "Hit 5 bugs with one Gladiator Frog spear", reward: 15, done: () => !!progress.flags.lance5 },
   { id: "maps5", name: "Explorer", info: "Win on 5 different maps", reward: 40, done: () => Object.keys(progress.mapWins).length >= 5 },
   { id: "chal5", name: "Challenger", info: "Beat 5 challenges", reward: 25, done: () => progress.challengeNum >= 5 },
   { id: "rich", name: "Fly Millionaire", info: "Have 3,000 flies at the end of a round", reward: 15, done: () => progress.stats.mostFlies >= 3000 },
@@ -4083,6 +4724,9 @@ const BUG_FACTS = {
   23: "Baby spiders ride on their mother's back for about a week.", 17: "Glasswing butterflies have see-through wings.",
   18: "Ghost mantises look just like dried, dead leaves.", 4: "Male stag beetles use their giant jaws to wrestle.",
   13: "Giant centipedes can grow as long as your forearm.", 14: "Atlas moths have no mouth and never eat as adults.",
+  24: "Fireflies make light with chemicals in their tails.", 25: "A termite queen can lay thousands of eggs a day.",
+  26: "Dragonflies can fly backwards and catch prey in mid-air.", 27: "Dung beetles steer by the light of the Milky Way.",
+  28: "A cockroach can live for a week without its head!", 29: "Scorpions glow blue-green under ultraviolet light.",
   22: "Wolf spiders hunt by chasing, not with webs.", 5: "Yellow jackets can sting again and again.",
   15: "Asian giant hornets are the biggest hornets in the world.", 21: "Hercules beetles are one of the longest beetles on Earth.",
   16: "Mole crickets dig tunnels with front legs shaped like shovels.",
@@ -4234,6 +4878,7 @@ function onGoogleSignIn(response) {
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function displayName(id) { const acc = accounts[id] || {}; return acc.name || id; }
 
+let renamingName = false; // is the "Change name" box open?
 function renderAccount() {
   const box = $("accountBox");
   if (accountMode) {
@@ -4253,7 +4898,7 @@ function renderAccount() {
     const acc = accounts[currentUser] || {};
     if (!acc.email) {
       // Older accounts made before emails were needed: ask for one
-      box.innerHTML = `<span>👤 <b>${displayName(currentUser)}</b>: please add your email address to keep this account</span>
+      box.innerHTML = `<span>👤 <b>${escapeHtml(displayName(currentUser))}</b>: please add your email address to keep this account</span>
         <input id="accAddEmail" type="email" placeholder="Email address" maxlength="80">
         <button id="accSaveEmail" class="acc-small">Save email</button>
         <button id="accOut" class="acc-small">Sign out</button>
@@ -4270,11 +4915,41 @@ function renderAccount() {
         renderAccount();
       };
     } else {
-      box.innerHTML = `<span>👤 Signed in as <b>${displayName(currentUser)}</b> <small>(${acc.email}${acc.google ? ", Google" : ""})</small></span>
+      if (renamingName) {
+        // Change the name shown in the game, on leaderboards and to online partners
+        box.innerHTML = `<b>✏️ Change your name</b>
+          <input id="accNewName" maxlength="20" value="${escapeHtml(displayName(currentUser))}">
+          <button id="accSaveName" class="acc-small">Save</button>
+          <button id="accCancelName" class="acc-small">Cancel</button>
+          <span id="accErr" class="acc-err"></span>`;
+        const input = $("accNewName");
+        if (input.focus) { input.focus(); input.select(); }
+        const save = () => {
+          const name = input.value.trim().replace(/\s+/g, " ");
+          if (name.length < 2) { $("accErr").textContent = "Your name needs at least 2 letters."; return; }
+          if (Object.entries(accounts).some(([id, a]) => id !== currentUser && displayName(id).toLowerCase() === name.toLowerCase())) {
+            $("accErr").textContent = "Another account on this computer already uses that name.";
+            return;
+          }
+          acc.name = name;
+          saveData("fpd_accounts", accounts);
+          renamingName = false;
+          renderAccount();
+          showToast("✏️ Name changed", `You're now called ${name}.`);
+        };
+        $("accSaveName").onclick = save;
+        input.onkeydown = (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { renamingName = false; renderAccount(); } };
+        $("accCancelName").onclick = () => { renamingName = false; renderAccount(); };
+        return;
+      }
+      box.innerHTML = `<span>👤 Signed in as <b>${escapeHtml(displayName(currentUser))}</b> <small>(${escapeHtml(acc.email)}${acc.google ? ", Google" : ""})</small></span>
+        <button id="accRename" class="acc-small">✏️ Change name</button>
         <button id="accOut" class="acc-small">Sign out</button>`;
+      $("accRename").onclick = () => { renamingName = true; renderAccount(); };
     }
     $("accOut").onclick = () => {
       if (acc.google && googleReady) google.accounts.id.disableAutoSelect();
+      renamingName = false;
       switchUser(null);
     };
   } else {
@@ -4340,6 +5015,7 @@ function frogStatLine(type) {
   const t = TOWERS[type];
   if (type === "lilypad") return "Lets land frogs sit in the pond";
   if (type === "glassfrog") return "Support: +30% speed nearby";
+  if (type === "coqui") return "Support: frogs nearby reach 15% farther";
   if (type === "tomatofrog") return `Makes ${t.damage} flies every ${(t.cooldown / 60).toFixed(0)}s`;
   const dmg = type === "pacman" ? "eats bugs" : `💥 ${t.damage} dmg`;
   return `${dmg} · 🎯 ${t.range} · ⚡ ${(60 / t.cooldown).toFixed(1)}/s`;
@@ -5040,11 +5716,51 @@ function netConnected() {
   sfx("coin");
   showToast("🌐 Online Co-op", `Connected with ${partnerName()}!`);
   if (net.role === "host") {
-    netStatus(`✅ Playing with <b>${escapeHtml(partnerName())}</b>! Pick a difficulty and a map to start. <small>(Challenges are 1-player.)</small>`);
+    netStatus(`<span>✅ Playing with <b>${escapeHtml(partnerName())}</b>!</span>
+      <button id="olStartGame" class="ol-start">▶ Start game</button>
+      <small>(Challenges are 1-player.)</small>`);
+    $("olStartGame").onclick = netPickMap;
     if (!inMenu) { coop = true; money2 = Math.max(money2, 120); netSendStart(); updateUI(); }
   } else {
-    netStatus(`✅ Playing with <b>${escapeHtml(partnerName())}</b>! Waiting for them to pick a map...`);
+    netStatus(`<span>✅ Playing with <b>${escapeHtml(partnerName())}</b>! Waiting for them to pick a map...</span>`);
   }
+}
+// HOST: the Start game button opens a map picker (built-in maps and your custom maps)
+function netPickMap() {
+  let box = $("mapPick");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "mapPick";
+    document.body.appendChild(box);
+  }
+  const custom = loadData("fpd_custom_maps", []);
+  const all = [...MAPS.map((m, i) => ({ m, i })), ...custom.map((m) => ({ m, i: m }))];
+  box.innerHTML = `<div class="mp-inner">
+    <div class="mp-head"><b>▶ Start a game with ${escapeHtml(partnerName())}</b><button id="mpClose">✕</button></div>
+    <div class="mp-diffs">${Object.entries(DIFFICULTIES).map(([k, d]) =>
+      `<button data-diff="${k}" class="${k === difficulty ? "on" : ""}">${d.name}</button>`).join("")}</div>
+    <small>Pick a difficulty, then click a map to start. Your partner's game starts too.</small>
+    <div class="mp-grid"></div></div>`;
+  box.style.display = "flex";
+  const close = () => { box.style.display = "none"; };
+  $("mpClose").onclick = close;
+  box.onclick = (e) => { if (e.target === box) close(); };
+  for (const b of box.querySelectorAll("[data-diff]")) b.onclick = () => {
+    pickDifficulty(b.dataset.diff);
+    for (const x of box.querySelectorAll("[data-diff]")) x.className = x === b ? "on" : "";
+  };
+  const grid = box.querySelector(".mp-grid");
+  const prevMap = currentMap;
+  for (const { m, i } of all) {
+    const card = document.createElement("button");
+    card.className = "mp-card";
+    card.innerHTML = `<canvas width="200" height="120"></canvas><b>${escapeHtml(m.name)}</b>
+      <small>${m.custom ? "🛠️ custom · " + m.rating + "/10" : m.difficulty + " map"}</small>`;
+    card.onclick = () => { close(); startMap(i); };
+    grid.appendChild(card);
+    drawMapThumb(m, card.querySelector("canvas"));
+  }
+  loadMap(prevMap);
 }
 function netLost() {
   const was = net.role;
@@ -5066,6 +5782,7 @@ function netLost() {
 }
 function netReset() {
   const peer = net.peer, conn = net.conn;
+  if ($("mapPick")) $("mapPick").style.display = "none";
   Object.assign(net, { role: null, peer: null, conn: null, code: null, cancelled: true });
   try { if (conn) conn.close(); } catch (e) {}
   try { if (peer) peer.destroy(); } catch (e) {}
@@ -5099,7 +5816,7 @@ function netOnData(m) {
     else if (m.t === "msg") { showMsg(m.text); }
     else if (m.t === "lobby") {
       if (!inMenu) { closePanel(); showMenu(); }
-      netStatus(`✅ Playing with <b>${escapeHtml(partnerName())}</b>! Waiting for them to pick a map...`);
+      netStatus(`<span>✅ Playing with <b>${escapeHtml(partnerName())}</b>! Waiting for them to pick a map...</span>`);
     }
   }
 }
@@ -5127,7 +5844,7 @@ function netSendStart() {
 }
 // The game, made safe to send: no links between objects, and shorter numbers
 function netClean(key, v) {
-  if (key === "route" || key === "src" || key === "poisonSrc") return undefined;
+  if (key === "route" || key === "src" || key === "poisonSrc" || key === "burnSrc") return undefined;
   if (key === "target" && v && typeof v === "object") return { x: Math.round(v.x), y: Math.round(v.y) };
   if (typeof v === "number" && !Number.isInteger(v)) return Math.round(v * 100) / 100;
   return v;
