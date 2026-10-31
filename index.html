@@ -11,13 +11,18 @@
       color: #eef5e6;
       font-family: system-ui, sans-serif;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
+      align-items: center;
       padding: 16px;
     }
     #wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
     #game { background: #6fae4f; border-radius: 8px; cursor: pointer; max-width: 100%; }
     #panel {
-      width: 250px;
+      position: sticky; top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      box-sizing: border-box;
+      width: 270px;
       background: #2a3d2c;
       border-radius: 8px;
       padding: 14px;
@@ -51,11 +56,16 @@
       display: none;
       flex-direction: column;
       gap: 8px;
-      background: #1f2f21;
+      background: rgba(31, 47, 33, 0.96);
       border: 2px solid #ffe066;
       border-radius: 8px;
       padding: 10px;
+      position: absolute; top: 8px; right: 8px; z-index: 12;
+      width: 240px; max-height: calc(100% - 16px); overflow-y: auto; box-sizing: border-box;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      scrollbar-width: thin; scrollbar-color: #4b6b4e transparent;
     }
+    #towerPanel.left { right: auto; left: 8px; }
     .tp-head { display: flex; justify-content: space-between; align-items: center; font-size: 17px; }
     .tp-close { background: transparent; padding: 2px 6px; font-size: 16px; }
     .tp-stats { font-size: 12px; color: #cfe0c8; }
@@ -74,7 +84,8 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      max-height: 480px;
+      position: sticky; top: 16px;
+      max-height: calc(100vh - 32px);
       overflow-y: auto;
       box-sizing: border-box;
     }
@@ -94,10 +105,24 @@
     #useAllBtn { background: #e8a317; font-weight: bold; font-size: 13px; padding: 8px; }
     .ab-tip { font-size: 11px; color: #9fb79a; }
     #iconBull, #iconPeeper, #iconFlying, #iconWood, #iconPacman, #iconGlass, #iconTomato { background: #6fae4f; }
-    #iconPad { background: #3b8fd6; }
+    #iconPad, #iconClawed, #iconSurinam { background: #3b8fd6; }
+    #iconGoliath, #iconLeopard, #iconTree { background: #6fae4f; }
 
     /* Start menu over the map */
     #gameArea { position: relative; max-width: 100%; }
+    #panel, #abilityBar, #menu { scrollbar-width: thin; scrollbar-color: #4b6b4e transparent; }
+    #panel::-webkit-scrollbar, #abilityBar::-webkit-scrollbar { width: 8px; }
+    #panel::-webkit-scrollbar-thumb, #abilityBar::-webkit-scrollbar-thumb { background: #4b6b4e; border-radius: 4px; }
+    /* While the menu is open: hide the game, the abilities bar and the sidebar (shop),
+       and let the menu use the whole window height so you see more before scrolling */
+    body.in-menu #abilityBar, body.in-menu #panel, body.in-menu #game { display: none; }
+    body.in-menu #gameArea { width: min(900px, calc(100vw - 32px)); }
+    body.in-menu #menu {
+      position: relative; inset: auto;
+      min-height: calc(100vh - 32px); overflow: visible;
+      padding: 20px 16px 30px; box-sizing: border-box;
+    }
+    body.in-menu .map-card { width: 270px; }
     #game { display: block; }
     #menu {
       position: absolute; inset: 0;
@@ -132,9 +157,154 @@
     .diff-btn.easy.selected { background: #2e7d32; border-color: #ffe066; }
     .diff-btn.medium.selected { background: #b8860b; border-color: #ffe066; }
     .diff-btn.hard.selected { background: #a33028; border-color: #ffe066; }
+    .diff-btn.freeplay.selected { background: #5b3fa0; border-color: #ffe066; }
+    .diff-btn.bossrush.selected { background: #8a1c1c; border-color: #ffe066; }
+    #continueBtn { background: #2e7d32; font-weight: bold; margin: 4px 0; }
+    #challengeBox {
+      display: flex; flex-direction: column; gap: 4px; max-width: 560px; width: 100%;
+      background: #2a3d2c; border: 2px solid #e8a317; border-radius: 8px; padding: 10px; margin: 4px 0;
+      font-size: 13px; text-align: center;
+    }
+    #challengeReward { color: #ffe066; font-weight: bold; }
+    #challengeBtn { background: #e8a317; font-weight: bold; }
+    #weatherList, #perkList { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 8px; }
+    .weather-btn, .perk-btn {
+      display: flex; flex-direction: column; gap: 2px; width: 150px; text-align: left;
+      background: #2a3d2c; border: 2px solid #4b6b4e; padding: 6px 8px; font-size: 13px;
+    }
+    .weather-btn small, .perk-btn small { font-size: 10px; color: #cfe0c8; }
+    .weather-btn.on { background: #2f5d80; border-color: #8fd3ff; }
+    #tokenShop { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 10px; font-size: 13px; }
+    .map-best { font-size: 11px; color: #ffe066; }
+    .shopItem.locked { opacity: 0.35; }
+    #coopBtn { background: #2a3d2c; border: 2px solid #4b6b4e; margin: 4px 0 6px; }
+    #onlineBtn { background: #2a3d5c; border: 2px solid #4f7fb3; margin: 0 0 6px; }
+    #onlineBox { flex-direction: column; align-items: center; gap: 6px; background: #1c2b3d; border: 2px solid #4f7fb3; border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; max-width: 460px; font-size: 13px; text-align: center; }
+    #onlineBox .ol-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    #onlineBox button { padding: 6px 10px; font-size: 13px; }
+    #onlineBox input { padding: 6px; border-radius: 6px; border: 1px solid #4f7fb3; background: #142030; color: #eef5e6; text-transform: uppercase; width: 120px; }
+    #olStatus { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .ol-code { font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #ffe066; }
+    .ol-link { display: flex; gap: 4px; }
+    .ol-link input { width: 230px !important; text-transform: none !important; font-size: 11px; }
+    #coopBtn.on { background: #2f5d80; border-color: #8fd3ff; }
+    #p2Help { font-size: 12px; background: #1f3550; border: 1px solid #4fb3ff; border-radius: 6px; padding: 6px; color: #cfe9ff; }
+    .tp-target { background: #2f5d80; font-size: 13px; padding: 7px; }
+    #toast {
+      position: fixed; right: 20px; bottom: 20px; z-index: 50; display: flex; flex-direction: column; gap: 2px;
+      background: #2e5e33; border: 2px solid #ffe066; border-radius: 10px; padding: 10px 16px; max-width: 300px;
+      opacity: 0; transform: translateY(20px); transition: opacity 0.4s, transform 0.4s; pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    .to-title { font-weight: bold; }
+    .to-text { font-size: 13px; color: #d9f2d0; }
+    #tabBar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
+    .tab-btn { background: #2a3d2c; border: 2px solid #4b6b4e; font-size: 14px; }
+    .tab-btn.on { border-color: #ffe066; background: #466b48; }
+    #tabBody { width: 100%; display: flex; flex-direction: column; align-items: center; }
+    .maker { display: flex; flex-direction: column; gap: 8px; align-items: center; width: 100%; max-width: 820px; }
+    .maker-tools { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; align-items: center; }
+    .maker-tools button { padding: 6px 10px; font-size: 13px; background: #2a3d2c; border: 2px solid #4b6b4e; }
+    .maker-tools button.on { border-color: #ffe066; background: #466b48; }
+    .maker-tools select, .maker-tools input, .lb-controls select { padding: 6px; border-radius: 6px; border: 1px solid #4b6b4e; background: #1f2f21; color: #eef5e6; }
+    #edCanvas { width: 100%; max-width: 800px; border-radius: 8px; cursor: crosshair; background: #6fae4f; }
+    .maker-tools label { font-size: 13px; display: flex; align-items: center; gap: 4px; }
+    .maker-tools .sep { width: 1px; height: 22px; background: #4b6b4e; }
+    .maker-rating { font-weight: bold; color: #ffe066; font-size: 13px; }
+    .lb-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; margin-bottom: 8px; font-size: 13px; }
+    .lb-table { border-collapse: collapse; background: #2a3d2c; border-radius: 8px; min-width: 300px; }
+    .lb-table th, .lb-table td { padding: 5px 12px; text-align: left; border-bottom: 1px solid #3a523c; }
+    .place-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 880px; }
+    .place-card { width: 210px; display: flex; flex-direction: column; gap: 4px; background: #2a3d2c; border: 2px solid #4b6b4e; border-radius: 8px; padding: 6px; font-size: 13px; }
+    .place-card canvas { width: 100%; border-radius: 6px; }
+    .place-card small { color: #cfe0c8; font-size: 11px; }
+    .place-btns { display: flex; gap: 4px; }
+    .place-btns button { padding: 5px 8px; font-size: 12px; }
+    .map-diff.easy { background: #2e9e8f; }
+    .map-diff.extreme { background: #6a1b9a; }
+    .help-box { max-width: 700px; background: #2a3d2c; border-radius: 8px; padding: 12px 16px; font-size: 13px; line-height: 1.5; color: #cfe0c8; }
+    .tab-note { font-size: 13px; color: #cfe0c8; }
+    .book-grid, .ach-grid, .skin-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 860px; }
+    .book-card { width: 150px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center;
+      background: #2a3d2c; border: 2px solid #4b6b4e; border-radius: 8px; padding: 6px; font-size: 12px; }
+    .book-card canvas { background: #c9a66b; border-radius: 6px; }
+    .book-card small { font-size: 10px; color: #ffe066; }
+    .book-card i { font-size: 10px; color: #cfe0c8; }
+    .book-card.unseen { opacity: 0.5; }
+    .ach-card { width: 190px; display: flex; flex-direction: column; gap: 2px; background: #2a3d2c; border: 2px solid #4b6b4e;
+      border-radius: 8px; padding: 6px 8px; font-size: 12px; opacity: 0.6; }
+    .ach-card.got { opacity: 1; border-color: #ffe066; background: #3d4f2a; }
+    .ach-card small { color: #cfe0c8; font-size: 11px; }
+    .ach-card i { color: #ffe066; font-size: 11px; font-style: normal; }
+    .skin-card { width: 110px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px;
+      background: #2a3d2c; border: 2px solid #4b6b4e; padding: 6px; }
+    .skin-card canvas { background: #6fae4f; border-radius: 6px; }
+    .skin-card small { font-size: 10px; color: #ffe066; }
+    .skin-card.on { border-color: #ffe066; background: #466b48; }
+    .stats-grid { display: grid; grid-template-columns: auto auto; gap: 6px 24px; background: #2a3d2c; padding: 12px 18px;
+      border-radius: 8px; font-size: 14px; }
+    .stats-grid b { text-align: right; color: #ffe066; }
+    #bossPopup {
+      position: absolute; left: 50%; top: 18%; transform: translate(-50%, -20px); z-index: 15;
+      display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
+      background: rgba(40, 10, 10, 0.88); border: 3px solid #e53935; border-radius: 12px; padding: 12px 26px;
+      opacity: 0; transition: opacity 0.4s, transform 0.4s; text-align: center; max-width: 80%;
+    }
+    #bossPopup.show { opacity: 1; transform: translate(-50%, 0); }
+    .bp-label { font-size: 13px; font-weight: bold; color: #ffb3a7; letter-spacing: 2px; }
+    .bp-name { font-size: 26px; font-weight: bold; color: #fff; }
+    .bp-tip { font-size: 13px; color: #ffd7d0; }
+    #confirmBox { position: absolute; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center;
+      background: rgba(10, 20, 12, 0.6); border-radius: 8px; }
+    .cf-card { background: #2a3d2c; border: 2px solid #ffe066; border-radius: 10px; padding: 16px 20px;
+      display: flex; flex-direction: column; gap: 12px; align-items: center; max-width: 320px; text-align: center; }
+    .cf-btns { display: flex; gap: 10px; }
+    .cf-yes { background: #a33028; min-width: 80px; }
+    .cf-no { background: #4caf50; min-width: 80px; }
+    /* Perk tree */
+    #perkList { position: relative; display: flex; flex-direction: column; align-items: center; gap: 22px;
+      max-width: 100%; overflow-x: auto; padding: 4px 8px 10px; }
+    .perk-lines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+    .perk-lines path { fill: none; stroke: #4b6b4e; stroke-width: 3; }
+    .perk-lines path.lit { stroke: #4caf50; }
+    .perk-row { display: flex; gap: 8px; justify-content: center; position: relative; z-index: 1; }
+    .cls-tag { font-size: 10px; font-weight: bold; border: 1px solid; border-radius: 8px; padding: 0 5px; white-space: nowrap; background: rgba(0,0,0,0.25); }
+    #classList { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; width: 100%; }
+    .class-card { display: flex; flex-direction: column; gap: 3px; padding: 6px 8px; border: 2px solid; border-radius: 8px; background: #22332a; font-size: 12px; text-align: left; }
+    .class-card .cls-frogs { color: #a9c0a3; font-size: 11px; }
+    .class-card .cls-pips { color: #ffe066; }
+    .class-card button { padding: 4px; font-size: 12px; }
+    .perk-node { display: flex; flex-direction: column; gap: 1px; width: 92px; padding: 4px; font-size: 10px; text-align: center;
+      border: 2px solid #4b6b4e; background: #2a3d2c; border-radius: 8px; }
+    .perk-node b { font-size: 10px; }
+    .perk-node small { font-size: 9px; color: #cfe0c8; line-height: 1.2; }
+    .perk-node i { font-size: 10px; font-style: normal; color: #ffe066; }
+    .perk-node.join { border-style: dashed; }
+    .perk-node.owned { background: #2e5e33; border-color: #4caf50; border-style: solid; opacity: 1; color: #fff; }
+    .perk-node.owned i { color: #9be59f; }
+    .perk-node.ready { border-color: #ffe066; box-shadow: 0 0 8px rgba(255,224,102,0.5); }
+    .perk-node.locked { opacity: 0.5; }
+    #accountBox { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; font-size: 13px; margin-bottom: 4px; }
+    #accountBox input { padding: 6px; border-radius: 6px; border: 1px solid #4b6b4e; background: #1f2f21; color: #eef5e6; width: 120px; }
+    .acc-small { padding: 5px 10px; font-size: 13px; }
+    .acc-err { color: #ff8a80; font-size: 12px; width: 100%; text-align: center; }
+    #collectionList { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-bottom: 8px; max-width: 640px; }
+    .frog-card { display: flex; align-items: center; gap: 6px; width: 150px; text-align: left; background: #2a3d2c; border: 2px solid #4b6b4e; padding: 4px 6px; font-size: 12px; }
+    .frog-card canvas { background: #6fae4f; border-radius: 6px; }
+    .frog-card small { display: block; font-size: 10px; color: #ffe066; }
+    .frog-card.owned { border-color: #4caf50; }
+    .frog-card.owned small { color: #9be59f; }
+    .frog-card em { display: block; font-style: normal; font-size: 9px; color: #cfe0c8; }
+    .frog-card { width: 165px; }
+    .tp-dealt { font-size: 12px; color: #ffb3a7; font-weight: bold; }
+    .google-off { background: #fff; color: #444; font-weight: bold; }
+    #accountBox small { color: #9fb79a; }
+    .weather-btn small { display: none; }
+    .weather-btn { width: auto; padding: 6px 12px; }
   </style>
 </head>
-<body data-version="22">
+<body data-version="44" class="in-menu">
+  <div id="versionWarning" style="display:none;background:#a33028;padding:8px;border-radius:6px;font-size:13px;margin-bottom:10px"></div>
   <div id="wrap">
     <div id="abilityBar">
       <h2>★ Abilities</h2>
@@ -145,28 +315,129 @@
     <div id="gameArea">
       <canvas id="game" width="800" height="480"></canvas>
       <!-- Start menu: pick a map -->
+      <!-- The game's own "Are you sure?" box (browser pop-ups can be blocked) -->
+      <!-- "NEW BOSS" pop-up (only on a boss's first round) -->
+      <!-- Upgrade menu: pops up inside the map when you click a frog -->
+      <div id="towerPanel"></div>
+      <div id="toast"><span class="to-title"></span><span class="to-text"></span></div>
+      <div id="bossPopup"><span class="bp-label">⚠️ NEW BOSS</span><span class="bp-name"></span><span class="bp-tip"></span></div>
+      <div id="confirmBox">
+        <div class="cf-card">
+          <span class="cf-q"></span>
+          <div class="cf-btns"><button class="cf-yes">Yes</button><button class="cf-no">No</button></div>
+        </div>
+      </div>
       <div id="menu">
         <h2>🐸 Frog Pond Defense</h2>
+        <div id="accountBox"></div>
+        <button id="continueBtn" style="display:none"></button>
         <p>1. Choose a difficulty</p>
         <div id="diffList"></div>
-        <p>2. Choose a map to start</p>
+        <button id="coopBtn" title="Player 1 uses the mouse, Player 2 uses the keyboard">👥 2 Players: Off</button>
+        <button id="onlineBtn" title="Play with someone on another computer">🌐 Online Co-op</button>
+        <div id="onlineBox" style="display:none">
+          <div class="ol-row">
+            <button id="olRandom">🔀 Find a random player</button>
+            <button id="olHost">🔗 Get a code / link</button>
+          </div>
+          <div class="ol-row"><input id="olCode" placeholder="Friend's code" maxlength="5"><button id="olJoin">Join</button></div>
+          <div id="olStatus"></div>
+          <button id="olLeave" style="display:none">✖ Leave online co-op</button>
+          <small>The host picks the map. Each player has their own flies and frogs; lives are shared.</small>
+        </div>
+        <p>2. Weather <small>(optional: click to turn on, hover for details)</small></p>
+        <div id="weatherList"></div>
+        <p>3. Choose a map to start!</p>
         <div id="mapList"></div>
+        <!-- Extra pages, opened as tabs -->
+        <div id="tabBar">
+          <button class="tab-btn" data-tab="ach">🏆 Achievements</button>
+          <button class="tab-btn" data-tab="skins">🎩 Skins</button>
+          <button class="tab-btn" data-tab="book">📖 Bug Book</button>
+          <button class="tab-btn" data-tab="stats">📊 Stats</button>
+          <button class="tab-btn" data-tab="help">❓ How to Play</button>
+          <button class="tab-btn" data-tab="maker">🛠️ Map Maker</button>
+          <button class="tab-btn" data-tab="place">🗺️ Map Place</button>
+          <button class="tab-btn" data-tab="lb">🌍 Leaderboard</button>
+        </div>
+        <div id="tabBody"></div>
+        <!-- (the How to Play text; shown by the How to Play tab) -->
+      <div id="info" style="display:none">
+        <b>How to play</b><br>
+        Pick from the shop (number keys 1 – 9, 0 and -), then click the map to place it.<br>
+        Click any of your towers to open its upgrade menu.<br>
+        3 paths: ⚡ Speed, 💥 Damage, 🎯 Range. Only one path can go past tier 2. Tier 4 unlocks a super attack – fire it from the Abilities bar on the left, or press Q to fire them all.<br>
+        Survive every round: Easy = 25, Medium = 40, Hard = 50. Boss Rush is only bosses, forever! Freeplay never ends – see how far you can get! (You can also keep going in Freeplay after you win.)<br>
+        Stop the bugs reaching the pond, the frogs' home, or the exits!<br><br>
+        <b>Bugs</b> (weakest to strongest)<br>
+        <span class="bug" style="background:#7a6a2c"></span>1 – Cricket (hops, weakest)<br>
+        <span class="bug" style="background:#333"></span>2 – Gnat<br>
+        <span class="bug" style="background:#5d4a3a"></span>3 – Mosquito (fast)<br>
+        <span class="bug" style="background:#8b4513"></span>4 – Beetle (slow, tanky)<br>
+        <span class="bug" style="background:#d62828"></span>5 – Ladybug<br>
+        <span class="bug" style="background:#b5300f"></span>6 – Fire Ant<br>
+        <span class="bug" style="background:#f2c200"></span>7 – Hornet (fast)<br>
+        <span class="bug" style="background:#5cb85c"></span>8 – Praying Mantis<br>
+        <span class="bug" style="background:#e8a317"></span>9 – Wasp (fast + tough, rare, from round 9)<br>
+        <span class="bug" style="background:#3b2a1e"></span>10 – Rhino Beetle (strongest, from round 16)<br>
+        <span class="bug" style="background:#6b7a3a"></span>Stink Bug (from round 12): when squashed, its stink stops nearby frogs attacking for 1.5 seconds<br>
+        <span class="bug" style="background:#7d8590"></span>Pill Bug (from round 20): armored, blocks 25% of all damage<br>
+        <br><b>Bosses</b> (weakest to strongest)<br>
+        <span class="bug" style="background:#4a2c17;width:14px;height:14px"></span>11 – <b>Stag Beetle</b> (slow) – new at round 5<br>
+        <span class="bug" style="background:#8a2b1a;width:14px;height:14px"></span>12 – <b>Giant Centipede</b> – new at round 10<br>
+        <span class="bug" style="background:#b5651d;width:14px;height:14px"></span>13 – <b>Atlas Moth</b> (flies) – new at round 15<br>
+        <span class="bug" style="background:#6b5038;width:14px;height:14px"></span>🕷️ <b>Wolf Spider</b> – new at round 20: splits into 6 fast Spiderlings when squashed<br>
+        <span class="bug" style="background:#ffcc00;width:14px;height:14px;border:2px solid #1a1a1a;box-sizing:border-box"></span>14 – <b>Yellow Jacket</b> (fast, flies) – new at round 25<br>
+        <span class="bug" style="background:#e8731c;width:14px;height:14px;border:2px solid #1a1a1a;box-sizing:border-box"></span>15 – <b>Asian Giant Hornet</b> (flies) – new at round 35<br>
+        <span class="bug" style="background:#a89a5a;width:14px;height:14px;border:2px solid #1c1610;box-sizing:border-box"></span>16 – <b>Hercules Beetle</b> (armored: blocks 30% of all damage, strongest) – new at round 45<br>
+        <small>Each boss shows up once at the end of its first round. 5 rounds later it starts coming in the middle of rounds, every few rounds, more often and in bigger groups later on.</small><br>
+        <br><b>💀 ULTRA BOSS – Giant Mole Cricket</b> (only once: round 50, Hard)<br>
+        Stage 1: a huge, slow, tanky bug. Stage 2 (at half health): it digs a tunnel. Every bug comes out of the tunnel, Beetles and Ladybugs pour out every half second plus a Rhino Beetle every 20 seconds, and it takes 25% less damage. Too big to stun!<br>
+        <br>Flying bosses cut corners, and fly straight across the pond on Frog Home!<br>
+        <br><b>👻 Invisible bugs</b> (you can only see and hit them inside a Glass Frog's glow)<br>
+        <span class="bug" style="background:#e6f5ff;border:1px solid #7a3b12"></span>Glasswing Butterfly (flies) – first one at the end of round 30<br>
+        <span class="bug" style="background:#cfc6b4"></span>Ghost Mantis (tough) – first one at the end of round 40<br>
+        <br><b>Saving</b>: the game saves itself after every round. Use Continue in the menu to pick up where you left off.<br>
+        <b>Challenges</b>: beat them for 🐸 Frog Tokens, then spend tokens on perks in the menu.
+      </div>
+
+        <div id="challengeBox">
+          <b>🏅 Challenge</b>
+          <span id="challengeText"></span>
+          <span id="challengeReward"></span>
+          <button id="challengeBtn">Play challenge</button>
+        </div>
+        <div id="tokenShop">
+          <b id="tokenCount"></b>
+          <small>Earn tokens by clearing rounds (Easy 1, Medium 1.5, Hard 2, Freeplay 1.5 per round) and beating challenges.</small>
+          <b>🐸 Frog Collection</b>
+          <small>Unlock new frogs to use in your games:</small>
+          <div id="collectionList"></div>
+          <b>🏷️ Class Buffs</b>
+          <small>Every frog has a class. Level up a class to buff ALL the frogs in it (3 levels each).</small>
+          <div id="classList"></div>
+          <b>🌳 Perk Tree</b>
+          <small>Starts from 3 roots and splits up. Dashed perks join two branches: you need BOTH perks above them. Hover a perk for details.</small>
+          <div id="perkList"></div>
+        </div>
       </div>
     </div>
     <div id="panel">
       <h1>🐸 Frog Pond Defense <small id="ver" style="font-size:11px;color:#9fb79a;font-weight:normal"></small></h1>
-      <div id="versionWarning" style="display:none;background:#a33028;padding:8px;border-radius:6px;font-size:13px"></div>
       <div class="stat"><span>Round</span><span id="round">0 / 50</span></div>
       <div class="stat"><span>Lives</span><span id="lives">100</span></div>
       <div class="stat"><span>Flies (money)</span><span id="money">120</span></div>
       <button id="startBtn">Start Round 1</button>
       <div style="display:flex;gap:8px">
+        <button id="pauseBtn" style="flex:1" title="Pause (key: P)">⏸ Pause</button>
         <button id="speedBtn" style="flex:1">Speed: 1x</button>
         <button id="restartBtn" style="flex:1;background:#8a3b3b">↻ Restart</button>
       </div>
+      <button id="muteBtn" style="background:#3a523c" title="Sound on/off (key: M)">🔊 Sound on</button>
+      <button id="autoBtn" style="background:#3a523c" title="Starts the next round by itself (key: A)">Auto start: Off</button>
       <button id="menuBtn" style="background:#3a523c">☰ Menu (change map)</button>
       <div id="msg"></div>
-      <div id="towerPanel"></div>
+      <div id="p2Help" style="display:none">🎮 <b>Player 2 keys</b>: W A S D move · Z / X pick frog · F place · R / T / Y upgrade Speed / Damage / Range · E super attack · H sell</div>
       <b>Shop</b>
       <button class="shopItem selected" id="shopFrog">
         <canvas id="iconFrog" width="40" height="40"></canvas>
@@ -212,38 +483,30 @@
         <canvas id="iconTomato" width="40" height="40"></canvas>
         <span><b>Tomato Frog</b> – 100 <small>(-)</small><br><small>Money maker: makes flies every few seconds during rounds.</small></span>
       </button>
-      <div id="info">
-        <b>How to play</b><br>
-        Pick from the shop (number keys 1 – 9, 0 and -), then click the map to place it.<br>
-        Click any of your towers to open its upgrade menu.<br>
-        3 paths: ⚡ Speed, 💥 Damage, 🎯 Range. Only one path can go past tier 2. Tier 4 unlocks a super attack – fire it from the Abilities bar on the left, or press Q to fire them all.<br>
-        Survive every round: Easy = 25, Medium = 40, Hard = 50. Freeplay never ends – see how far you can get! (You can also keep going in Freeplay after you win.)<br>
-        Stop the bugs reaching the pond (or the frogs' home)!<br><br>
-        <b>Bugs</b> (weakest to strongest)<br>
-        <span class="bug" style="background:#7a6a2c"></span>1 – Cricket (hops, weakest)<br>
-        <span class="bug" style="background:#333"></span>2 – Gnat<br>
-        <span class="bug" style="background:#5d4a3a"></span>3 – Mosquito (fast)<br>
-        <span class="bug" style="background:#8b4513"></span>4 – Beetle (slow, tanky)<br>
-        <span class="bug" style="background:#d62828"></span>5 – Ladybug<br>
-        <span class="bug" style="background:#b5300f"></span>6 – Fire Ant<br>
-        <span class="bug" style="background:#f2c200"></span>7 – Hornet (fast)<br>
-        <span class="bug" style="background:#5cb85c"></span>8 – Praying Mantis<br>
-        <span class="bug" style="background:#e8a317"></span>9 – Wasp (fast + tough, from round 18)<br>
-        <span class="bug" style="background:#3b2a1e"></span>10 – Rhino Beetle (strongest, from round 26)<br>
-        <br><b>Bosses</b> (weakest to strongest)<br>
-        <span class="bug" style="background:#4a2c17;width:14px;height:14px"></span>11 – <b>Stag Beetle</b> (slow) – round 5, 8, every 5<br>
-        <span class="bug" style="background:#8a2b1a;width:14px;height:14px"></span>12 – <b>Giant Centipede</b> – rounds 20, 30, 50<br>
-        <span class="bug" style="background:#b5651d;width:14px;height:14px"></span>13 – <b>Atlas Moth</b> (flies) – rounds 25, 35, 50<br>
-        <span class="bug" style="background:#ffcc00;width:14px;height:14px;border:2px solid #1a1a1a;box-sizing:border-box"></span>14 – <b>Yellow Jacket</b> (fast, flies) – 15, 22, 28, 35, 42, 45, 50<br>
-        <span class="bug" style="background:#e8731c;width:14px;height:14px;border:2px solid #1a1a1a;box-sizing:border-box"></span>15 – <b>Asian Giant Hornet</b> (flies, strongest) – rounds 40, 50<br>
-        <br><b>💀 ULTRA BOSS – Giant Mole Cricket</b> (round 50, Hard only)<br>
-        Stage 1: a huge, slow, tanky bug. Stage 2 (at half health): it digs a tunnel. Every bug comes out of the tunnel, easy bugs keep pouring out, and it takes 25% less damage. Too big to stun!<br>
-        <br>Flying bosses cut corners, and fly straight across the pond on Frog Home!
-      </div>
+      <button class="shopItem" id="shopGoliath">
+        <canvas id="iconGoliath" width="40" height="40"></canvas>
+        <span><b>Goliath Frog</b> – 110<br><small>The biggest frog! Stomps the ground, hitting every bug around it.</small></span>
+      </button>
+      <button class="shopItem" id="shopLeopard">
+        <canvas id="iconLeopard" width="40" height="40"></canvas>
+        <span><b>Leopard Frog</b> – 85<br><small>Super fast tongue. 1 in 4 hits is a CRIT for 2.5x damage.</small></span>
+      </button>
+      <button class="shopItem" id="shopTree">
+        <canvas id="iconTree" width="40" height="40"></canvas>
+        <span><b>Red-eyed Tree Frog</b> – 75<br><small>Its startling hit knocks bugs back along the path.</small></span>
+      </button>
+      <button class="shopItem" id="shopClawed">
+        <canvas id="iconClawed" width="40" height="40"></canvas>
+        <span><b>African Clawed Frog</b> – 120<br><small>WATER: long-range geysers that splash every bug where they land.</small></span>
+      </button>
+      <button class="shopItem" id="shopSurinam">
+        <canvas id="iconSurinam" width="40" height="40"></canvas>
+        <span><b>Surinam Toad</b> – 95<br><small>WATER: shoots 3 different bugs at once.</small></span>
+      </button>
     </div>
   </div>
   <!-- The ?v= number makes browsers load the newest game.js instead of an old saved copy.
        Change it (and GAME_VERSION in game.js) every time you update the game. -->
-  <script src="game.js?v=22"></script>
+  <script src="game.js?v=44"></script>
 </body>
 </html>
